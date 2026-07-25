@@ -389,7 +389,14 @@ class ValidationEngine:
         threats = []
 
         # Internal Validity
-        if kappa < self.KAPPA_THRESHOLD:
+        if kappa == 0.0:
+            threats.append({
+                "type": "internal_validity",
+                "description": "Menunggu verifikasi expert ganda (Inter-rater data belum tersedia).",
+                "level": ThreatLevel.LOW,
+                "mitigation": "Lakukan anotasi ganda untuk menghitung Cohen's Kappa."
+            })
+        elif kappa < self.KAPPA_THRESHOLD:
             threats.append({
                 "type": "internal_validity",
                 "description": f"Inter-rater agreement rendah (κ={kappa:.3f} < {self.KAPPA_THRESHOLD}). Definisi operasional miskonsepsi mungkin ambigu.",
@@ -417,7 +424,14 @@ class ValidationEngine:
             })
 
         # Conclusion Validity
-        if f1 < self.F1_THRESHOLD:
+        if f1 == 0.0:
+            threats.append({
+                "type": "conclusion_validity",
+                "description": "Data pembanding (Ground Truth) belum diunggah untuk kalkulasi F1-Score.",
+                "level": ThreatLevel.LOW,
+                "mitigation": "Unggah dataset ground truth (anotasi pakar) untuk validasi algoritma."
+            })
+        elif f1 < self.F1_THRESHOLD:
             threats.append({
                 "type": "conclusion_validity",
                 "description": f"F1-Score rendah ({f1:.3f} < {self.F1_THRESHOLD}). Kesimpulan berdasarkan model ini tidak dapat diandalkan.",

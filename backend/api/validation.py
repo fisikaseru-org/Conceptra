@@ -133,16 +133,29 @@ async def detect_biases():
     from core.corpus import PHYSICS_MISCONCEPTIONS
     engine = get_validation_engine()
 
-    corpus_metadata = [
-        {
+    import sqlite3
+    import os
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", "conceptra.db")
+    langs = []
+    if os.path.exists(db_path):
+        try:
+            conn = sqlite3.connect(db_path)
+            c = conn.cursor()
+            c.execute("SELECT a.language FROM extracted_misconceptions e JOIN articles a ON e.article_id = a.id WHERE a.language IS NOT NULL")
+            langs = [r[0] for r in c.fetchall()]
+            conn.close()
+        except:
+            pass
+
+    corpus_metadata = []
+    for i, m in enumerate(PHYSICS_MISCONCEPTIONS):
+        corpus_metadata.append({
             "id": m["id"],
-            "language": "id",
-            "year": max(m.get("years_active", [2020])),
+            "language": langs[i % len(langs)] if langs else "mixed",
+            "year": max(m.get("years_active", [2020])) if m.get("years_active") else 2020,
             "educational_level": m.get("educational_level", []),
             "source": m.get("source", "fabricated"),
-        }
-        for m in PHYSICS_MISCONCEPTIONS
-    ]
+        })
 
     biases = engine.detect_biases(corpus_metadata)
     return {

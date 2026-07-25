@@ -11,7 +11,7 @@ async def get_all_misconceptions(
     level: Optional[str] = Query(None, description="Filter by educational level"),
     year: Optional[int] = Query(None, description="Filter by year"),
     min_frequency: Optional[int] = Query(None, description="Minimum frequency"),
-    limit: int = Query(5000, le=10000)
+    limit: int = Query(10000, le=50000)
 ):
     """Ambil semua data miskonsepsi dengan opsi filter."""
     results = PHYSICS_MISCONCEPTIONS.copy()

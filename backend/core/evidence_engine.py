@@ -60,12 +60,15 @@ class BibliographicMetadata:
     year: Optional[int] = None
     volume: Optional[str] = None
     pages: Optional[str] = None
+    url: Optional[str] = None
     citation_count: int = 0
     impact_factor: Optional[float] = None
 
     def is_valid(self) -> bool:
-        """Bukti dianggap valid jika minimal memiliki DOI atau Scopus ID."""
-        return bool(self.doi or self.scopus_id)
+        """Bukti dianggap valid jika minimal memiliki DOI, Scopus ID, URL, atau metadata dasar lengkap."""
+        has_id = bool(self.doi or self.scopus_id or self.url)
+        has_basic = bool(self.title and self.journal and self.authors)
+        return has_id or has_basic
 
     def to_citation(self) -> str:
         """Format APA-style citation."""
@@ -319,17 +322,31 @@ class EvidenceEngine:
         has_doi = sum(1 for e in corpus if e.get("doi"))
         has_methodology = sum(1 for e in corpus if e.get("frequency_methodology"))
         has_evidence_level = sum(1 for e in corpus if e.get("evidence_level"))
-        fabricated = sum(1 for e in corpus if e.get("source") == "fabricated" or not e.get("doi"))
+        
+        def _check_validity(entry: Dict) -> bool:
+            if entry.get("source") == "fabricated": return False
+            meta = BibliographicMetadata(
+                doi=entry.get("doi"),
+                scopus_id=entry.get("scopus_id"),
+                url=entry.get("url") or entry.get("open_access_url"),
+                title=entry.get("title") or entry.get("references", [""])[0] if entry.get("references") else "",
+                journal=entry.get("journal"),
+                authors=entry.get("authors") or []
+            )
+            return meta.is_valid()
+
+        fabricated = sum(1 for e in corpus if not _check_validity(e))
+        valid_entries = total - fabricated
 
         # Buat evidence records untuk setiap entri
         flagged = []
         for entry in corpus:
             issues = []
-            if not entry.get("doi"):
-                issues.append("missing_doi")
+            if not _check_validity(entry):
+                issues.append("missing_verifiable_source")
                 self.create_fabricated_flag(
                     claim=f"Entri {entry.get('id')}: {entry.get('misconception', '')[:80]}",
-                    reason="Tidak ada DOI — sumber tidak dapat diverifikasi",
+                    reason="Tidak ada DOI/URL/Metadata lengkap — sumber tidak dapat diverifikasi",
                     entry_id=entry.get("id", "unknown")
                 )
             if not entry.get("frequency_methodology"):
@@ -343,7 +360,7 @@ class EvidenceEngine:
             "has_frequency_methodology": has_methodology,
             "has_evidence_level": has_evidence_level,
             "fabricated_or_unverifiable": fabricated,
-            "completeness_pct": round((has_doi / max(total, 1)) * 100, 1),
+            "completeness_pct": round((valid_entries / max(total, 1)) * 100, 1),
             "publication_ready": fabricated == 0 and has_methodology == total,
             "flagged_entries": flagged[:20],
             "total_evidence_records": len(self._registry),

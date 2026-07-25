@@ -248,9 +248,9 @@ export default function MisconceptionsPage() {
           
           <div className="glass-card p-4 flex items-center justify-between border-l-4 border-rose-500">
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-[#4a6fa5] block">Prevalensi Terbanyak</span>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#4a6fa5] block">Persentase Siswa Terbanyak</span>
               <span className="text-2xl font-extrabold text-white mt-1 block">
-                {misconceptions.length > 0 ? Math.max(...misconceptions.map(m => m.frequency)) : 0} <span className="text-xs font-normal text-slate-500">Kasus</span>
+                {misconceptions.length > 0 ? Math.max(...misconceptions.map(m => m.frequency)) : 0}%
               </span>
             </div>
             <div className="p-2 bg-rose-500/10 rounded-lg text-rose-400">
@@ -260,7 +260,7 @@ export default function MisconceptionsPage() {
 
           <div className="glass-card p-4 flex items-center justify-between border-l-4 border-emerald-500">
             <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-[#4a6fa5] block">Rerata Prevalensi</span>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-[#4a6fa5] block">Rerata Persentase Siswa</span>
               <span className="text-2xl font-extrabold text-white mt-1 block">
                 {misconceptions.length > 0 ? (misconceptions.reduce((acc, m) => acc + m.frequency, 0) / misconceptions.length).toFixed(1) : 0}%
               </span>
@@ -449,7 +449,7 @@ export default function MisconceptionsPage() {
                         </div>
                         <div className="text-right flex-shrink-0">
                           <div className="text-xl font-bold" style={{ color }}>{m.frequency}%</div>
-                          <div className="text-[10px] text-[#4a6fa5]">Prevalensi</div>
+                          <div className="text-[10px] text-[#4a6fa5]">Persentase Siswa</div>
                         </div>
                       </div>
                     </button>
@@ -530,11 +530,11 @@ export default function MisconceptionsPage() {
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="p-4 rounded-xl bg-slate-800/20 border border-slate-700/40">
-                        <div className="text-[10px] text-slate-400 mb-1 font-medium tracking-wider">RASIO PREVALENSI</div>
+                        <div className="text-[10px] text-slate-400 mb-1 font-medium tracking-wider">PERSENTASE SISWA</div>
                         <div className="text-2xl font-bold" style={{ color: DOMAIN_COLORS[selected.domain] || '#3b82f6' }}>
                           {selected.frequency}%
                         </div>
-                        <div className="text-[10px] text-slate-500">Rerata prevalensi siswa</div>
+                        <div className="text-[10px] text-slate-500">Persentase siswa terdeteksi</div>
                       </div>
                       <div className="p-4 rounded-xl bg-slate-800/20 border border-slate-700/40">
                         <div className="text-[10px] text-[#4a6fa5] mb-1 font-medium tracking-wider">PERIODE AKTIF</div>
@@ -624,14 +624,15 @@ export default function MisconceptionsPage() {
                                       </span>
                                     )}
                                     {selected.frequency_methodology && (
-                                      <span className="badge badge-amber text-[10px] px-2 py-0.5">
-                                        Deteksi NLP: {
-                                          selected.frequency_methodology === 'sentence_pattern' ? 'Analisis Pola Kalimat' :
-                                          selected.frequency_methodology === 'keyword_match' ? 'Kecocokan Kata Kunci' :
-                                          selected.frequency_methodology.replace('_', ' ')
-                                        }
-                                      </span>
-                                    )}
+                                       <span className="badge badge-amber text-[10px] px-2 py-0.5">
+                                         Metode NLP: {
+                                           selected.frequency_methodology === 'sentence_level_v2' ? 'Ekstraksi Semantik Konteks Kalimat' :
+                                           selected.frequency_methodology === 'sentence_pattern' ? 'Analisis Pola Sintaksis' :
+                                           selected.frequency_methodology === 'keyword_match' ? 'Pencocokan Kata Kunci Semantik' :
+                                           selected.frequency_methodology.replace(/_/g, ' ')
+                                         }
+                                       </span>
+                                     )}
                                   </div>
 
                                   <div className="flex gap-2">

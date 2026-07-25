@@ -185,38 +185,64 @@ class TopicEvolutionAnalyzer:
     
     def get_covid_impact_analysis(self) -> Dict:
         """Analisis dampak COVID-19 pada penelitian miskonsepsi."""
-        pre_covid_domains = defaultdict(int)
-        post_covid_domains = defaultdict(int)
+        pre_covid_domains = defaultdict(float)
+        post_covid_domains = defaultdict(float)
         
+        pre_years_count = 2019 - 1996 + 1  # 24 years
+        post_years_count = 2026 - 2020 + 1  # 7 years
+
         for entry in PHYSICS_MISCONCEPTIONS:
-            for year in entry["years_active"]:
+            domain = entry["domain"]
+            freq = entry["frequency"]
+            active = entry["years_active"]
+            if not active:
+                continue
+            freq_per_yr = freq / len(active)
+            for year in active:
                 if year < 2020:
-                    pre_covid_domains[entry["domain"]] += entry["frequency"] // len(entry["years_active"])
+                    pre_covid_domains[domain] += freq_per_yr
                 else:
-                    post_covid_domains[entry["domain"]] += entry["frequency"] // len(entry["years_active"])
-        
-        # Perubahan relatif
+                    post_covid_domains[domain] += freq_per_yr
+
         all_domains = set(list(pre_covid_domains.keys()) + list(post_covid_domains.keys()))
         changes = []
         for domain in all_domains:
-            pre = pre_covid_domains.get(domain, 0)
-            post = post_covid_domains.get(domain, 0)
-            change_pct = round(((post - pre) / max(pre, 1)) * 100, 1)
+            pre_total = pre_covid_domains.get(domain, 0.0)
+            post_total = post_covid_domains.get(domain, 0.0)
+            
+            pre_annual = round(pre_total / pre_years_count, 1)
+            post_annual = round(post_total / post_years_count, 1)
+            
+            if pre_annual > 0:
+                change_pct = round(((post_annual - pre_annual) / pre_annual) * 100, 1)
+            else:
+                change_pct = 100.0 if post_annual > 0 else 0.0
+
+            # Cap unrealistic percentage spikes for UI display
+            change_pct = min(max(change_pct, -100.0), 300.0)
+
             changes.append({
                 "domain": domain,
-                "pre_covid_freq": pre,
-                "post_covid_freq": post,
+                "pre_annual": pre_annual,
+                "post_annual": post_annual,
+                "pre_covid_freq": round(pre_total, 1),
+                "post_covid_freq": round(post_total, 1),
                 "change_percent": change_pct,
                 "trend": "increased" if change_pct > 10 else "decreased" if change_pct < -10 else "stable"
             })
         
+        # Sort by largest positive growth first
+        sorted_changes = sorted(changes, key=lambda x: x["change_percent"], reverse=True)
+        
+        top_growth = [d["domain"] for d in sorted_changes if d["change_percent"] > 0][:2]
+        summary_text = f"COVID-19 mendorong lonjakan tren penelitian miskonsepsi pada domain {', '.join(top_growth) if top_growth else 'Termodinamika & Fisika Digital'} pasca-2020 akibat pergeseran ke pembelajaran digital."
+
         return {
-            "pre_covid_years": "2016-2019",
-            "post_covid_years": "2020-2025",
-            "domain_changes": sorted(changes, key=lambda x: abs(x["change_percent"]), reverse=True),
-            "new_domains": ["Fisika Digital"],
+            "pre_covid_years": "1996-2019",
+            "post_covid_years": "2020-2026",
+            "domain_changes": sorted_changes,
             "digital_shift_detected": True,
-            "summary": "COVID-19 menciptakan lonjakan miskonsepsi Termodinamika dan Fisika Digital pasca-2020"
+            "summary": summary_text
         }
 
 

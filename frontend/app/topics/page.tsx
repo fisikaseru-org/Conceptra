@@ -7,7 +7,7 @@ import { getTopicOverview, getHeatmap, getTrends, getCovidImpact, getTopicRiver,
 import {
   LineChart, Line, AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
-  Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis
+  Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, LabelList
 } from 'recharts';
 
 const DOMAIN_COLORS: Record<string, string> = {
@@ -83,13 +83,80 @@ export default function TopicsPage() {
     peak: t.peak_year,
   }));
 
-  const covidChangeData = (covidImpact?.domain_changes || []).slice(0, 8).map((d: any) => ({
-    domain: d.domain?.length > 10 ? d.domain.slice(0, 10) : d.domain,
-    fullDomain: d.domain,
-    change: d.change_percent,
-    pre: d.pre_covid_freq,
-    post: d.post_covid_freq,
-  }));
+  const covidChangeData = (covidImpact?.domain_changes || [])
+    .slice(0, 8)
+    .map((d: any) => {
+      const pre = parseFloat(d.pre_covid_freq?.toFixed(1) || '0');
+      const post = parseFloat(d.post_covid_freq?.toFixed(1) || '0');
+      const total = pre + post;
+      const prePct = total > 0 ? (pre / total) * 100 : 0;
+      const postPct = total > 0 ? (post / total) * 100 : 0;
+
+      return {
+        domain: d.domain?.length > 15 ? d.domain.slice(0, 15) + '...' : d.domain,
+        fullDomain: d.domain,
+        change: parseFloat(d.change_percent?.toFixed(1) || '0'),
+        pre,
+        post,
+        prePct: parseFloat(prePct.toFixed(1)),
+        postPct: parseFloat(postPct.toFixed(1)),
+      };
+    })
+    .sort((a: any, b: any) => b.postPct - a.postPct); // Sort by highest Post-COVID shift
+
+  const CovidTooltip = ({ active, payload }: any) => {
+    if (active && payload?.length) {
+      const data = payload[0].payload;
+      const isPositive = data.change >= 0;
+      return (
+        <div className="glass-card p-4 text-sm max-w-sm border border-slate-700/50 shadow-2xl backdrop-blur-xl bg-[#0d1525]/95">
+          <p className="text-white font-bold mb-3 text-base border-b border-slate-700/50 pb-2">{data.fullDomain}</p>
+          
+          <div className="space-y-3">
+            {/* Proportions */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-slate-400 text-[11px] uppercase tracking-wider font-semibold">Proporsi Riset (Rerata/Thn)</span>
+              </div>
+              <div className="w-full bg-slate-800 rounded-full h-2.5 flex overflow-hidden shadow-inner">
+                <div style={{ width: `${data.prePct}%` }} className="bg-gradient-to-r from-blue-600 to-blue-400 h-full" />
+                <div style={{ width: `${data.postPct}%` }} className="bg-gradient-to-r from-rose-500 to-rose-400 h-full" />
+              </div>
+              <div className="flex justify-between text-[11px] font-bold mt-1">
+                <span className="text-blue-400">Pre: {data.prePct}%</span>
+                <span className="text-rose-400">Post: {data.postPct}%</span>
+              </div>
+            </div>
+            
+            {/* Raw Values Grid */}
+            <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-700/50">
+              <div className="bg-blue-900/20 p-2.5 rounded-lg border border-blue-500/20">
+                <div className="text-[10px] text-blue-300/70 uppercase font-semibold mb-1 flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500" /> Pre-COVID
+                </div>
+                <div className="font-bold text-blue-100 text-lg leading-none">{data.pre} <span className="text-[10px] font-normal text-blue-300/50">/ thn</span></div>
+              </div>
+              <div className="bg-rose-900/20 p-2.5 rounded-lg border border-rose-500/20">
+                <div className="text-[10px] text-rose-300/70 uppercase font-semibold mb-1 flex items-center gap-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Post-COVID
+                </div>
+                <div className="font-bold text-rose-100 text-lg leading-none">{data.post} <span className="text-[10px] font-normal text-rose-300/50">/ thn</span></div>
+              </div>
+            </div>
+            
+            {/* Growth Badge */}
+            <div className="pt-2 flex items-center justify-between">
+              <span className="text-slate-400 text-xs">Pertumbuhan Pasca-COVID:</span>
+              <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${isPositive ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'}`}>
+                {isPositive ? '↑ +' : '↓ '}{data.change}%
+              </span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="min-h-screen grid-pattern">
@@ -308,47 +375,141 @@ export default function TopicsPage() {
             {/* COVID Impact Tab */}
             {activeTab === 'covid' && covidImpact && (
               <div className="space-y-6">
-                <div className="glass-card p-6 border-rose-500/20 bg-rose-500/5">
-                  <h2 className="font-semibold text-white mb-2 flex items-center gap-2">
-                    <AlertTriangle size={16} className="text-rose-400" />
-                    Dampak COVID-19 pada Penelitian Miskonsepsi Fisika
-                  </h2>
-                  <p className="text-[#8fb3d8] text-sm">{covidImpact.summary}</p>
+                {/* Executive Summary */}
+                <div className="glass-card p-6 border-rose-500/30 bg-gradient-to-r from-rose-500/10 via-purple-500/5 to-transparent">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="p-2 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-400">
+                      <AlertTriangle size={18} />
+                    </div>
+                    <div>
+                      <h2 className="font-bold text-white text-lg">Dampak COVID-19 pada Penelitian Miskonsepsi Fisika</h2>
+                      <p className="text-xs text-rose-300">Analisis Pergeseran Perilaku & Tren Topik Sebelum vs Sesudah Pandemi</p>
+                    </div>
+                  </div>
+                  <p className="text-slate-300 text-sm mt-3 leading-relaxed">{covidImpact.summary}</p>
                 </div>
 
+                {/* Main Visual: Grouped Dual Bar Chart (Horizontal layout so domain names are clear) */}
                 <div className="glass-card p-6">
-                  <h3 className="font-semibold text-white mb-6">Perbandingan Pre & Post COVID Per Domain (%)</h3>
-                  <ResponsiveContainer width="100%" height={280}>
-                    <BarChart data={covidChangeData}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#1e3a5f" />
-                      <XAxis dataKey="domain" tick={{ fill: '#4a6fa5', fontSize: 11 }} />
-                      <YAxis tick={{ fill: '#4a6fa5', fontSize: 12 }} />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Bar dataKey="change" name="Perubahan (%)" radius={[4, 4, 0, 0]}>
-                        {covidChangeData.map((entry: any, i: number) => (
-                          <Cell key={i} fill={entry.change > 0 ? '#ef4444' : '#10b981'} opacity={0.8} />
-                        ))}
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                    <div>
+                      <h3 className="font-bold text-white text-lg flex items-center gap-2 mb-1">
+                        <Activity size={18} className="text-rose-400" />
+                        Intensitas Fokus Riset (Pre vs Post COVID)
+                      </h3>
+                      <p className="text-xs text-slate-400 max-w-2xl">
+                        Visualisasi proporsi publikasi tahunan. Bar yang didominasi warna merah (Post-COVID) menandakan topik tersebut mengalami lonjakan popularitas yang signifikan selama dan setelah pandemi.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-4 text-xs bg-slate-800/50 px-3 py-1.5 rounded-full border border-slate-700/50">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]" />
+                        <span className="text-slate-200 font-medium">Pre-COVID</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
+                        <span className="text-slate-200 font-medium">Post-COVID</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <ResponsiveContainer width="100%" height={420}>
+                    <BarChart data={covidChangeData} layout="vertical" margin={{ top: 10, right: 30, left: 10, bottom: 10 }} barSize={32}>
+                      <defs>
+                        <linearGradient id="gradPre" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9} />
+                          <stop offset="100%" stopColor="#2563eb" stopOpacity={1} />
+                        </linearGradient>
+                        <linearGradient id="gradPost" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#f43f5e" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#e11d48" stopOpacity={0.9} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={true} vertical={false} />
+                      <XAxis type="number" hide domain={[0, 100]} />
+                      <YAxis type="category" dataKey="domain" width={120} tick={{ fill: '#e2e8f0', fontSize: 12, fontWeight: 500 }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<CovidTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
+                      
+                      <Bar dataKey="prePct" name="Pre-COVID" stackId="a" fill="url(#gradPre)" radius={[4, 0, 0, 4]}>
+                        <LabelList dataKey="prePct" position="inside" formatter={(v: any) => v > 12 ? `${v}%` : ''} fill="rgba(255,255,255,0.95)" fontSize={11} fontWeight={700} />
+                      </Bar>
+                      <Bar dataKey="postPct" name="Post-COVID" stackId="a" fill="url(#gradPost)" radius={[0, 4, 4, 0]}>
+                        <LabelList dataKey="postPct" position="inside" formatter={(v: any) => v > 12 ? `${v}%` : ''} fill="rgba(255,255,255,0.95)" fontSize={11} fontWeight={700} />
                       </Bar>
                     </BarChart>
                   </ResponsiveContainer>
-                  <p className="text-xs text-[#4a6fa5] mt-2 text-center">Merah = meningkat · Hijau = menurun pasca-COVID</p>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="glass-card p-4 text-center">
-                    <div className="text-xs text-[#4a6fa5] mb-1">Pre-COVID</div>
-                    <div className="text-2xl font-bold text-blue-400">1996–2019</div>
-                    <div className="text-xs text-[#4a6fa5]">Fokus: Instrumen diagnostik</div>
+                {/* Detailed Domain Change Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {covidChangeData.map((d: any, idx: number) => {
+                    const isPositive = d.change > 0;
+                    return (
+                      <div key={idx} className="glass-card p-4 flex flex-col justify-between border-slate-800/60 hover:border-slate-700 transition-all">
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="font-semibold text-white text-sm">{d.domain}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                              isPositive 
+                                ? 'bg-rose-500/10 text-rose-400 border-rose-500/20' 
+                                : d.change < 0 
+                                ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' 
+                                : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                            }`}>
+                              {isPositive ? `+${d.change}%` : `${d.change}%`}
+                            </span>
+                          </div>
+                          <div className="space-y-1.5 text-xs text-slate-400 mt-3">
+                            <div className="flex justify-between">
+                              <span>Pre-COVID:</span>
+                              <span className="text-slate-200 font-medium">{d.pre} kasus/thn</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Post-COVID:</span>
+                              <span className="text-slate-200 font-medium">{d.post} kasus/thn</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Progress indicator */}
+                        <div className="w-full bg-slate-800 rounded-full h-1.5 mt-4 overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${isPositive ? 'bg-rose-500' : 'bg-emerald-400'}`} 
+                            style={{ width: `${Math.min(100, Math.abs(d.change))}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* 3 Era Timeline Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  <div className="glass-card p-5 border-blue-500/30 bg-blue-500/5 relative overflow-hidden">
+                    <div className="text-xs font-bold text-blue-400 uppercase tracking-wider mb-1">ERA PRE-COVID</div>
+                    <div className="text-2xl font-black text-white mb-2">1996–2019</div>
+                    <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                      Fokus utama pada pengembangan instrumen diagnostik konvensional dan pemetaan konsepsi dasar di kelas tatap muka.
+                    </p>
+                    <span className="badge badge-blue text-[10px]">Fokus: Diagnostik Kelas Tatap Muka</span>
                   </div>
-                  <div className="glass-card p-4 text-center border-rose-500/30">
-                    <div className="text-xs text-rose-400 mb-1">🦠 PANDEMI</div>
-                    <div className="text-2xl font-bold text-rose-400">2020–2022</div>
-                    <div className="text-xs text-[#4a6fa5]">Shift ke pembelajaran digital</div>
+
+                  <div className="glass-card p-5 border-rose-500/40 bg-rose-500/10 relative overflow-hidden">
+                    <div className="text-xs font-bold text-rose-400 uppercase tracking-wider mb-1">🦠 ERA PANDEMI</div>
+                    <div className="text-2xl font-black text-white mb-2">2020–2022</div>
+                    <p className="text-xs text-rose-200 leading-relaxed mb-3">
+                      Terjadi lonjakan miskonsepsi pada topik abstrak akibat transisi mendadak ke Pembelajaran Jarak Jauh (PJJ).
+                    </p>
+                    <span className="badge border-rose-500/30 bg-rose-500/20 text-rose-300 text-[10px]">Shift: PJJ & Simulasi Digital</span>
                   </div>
-                  <div className="glass-card p-4 text-center">
-                    <div className="text-xs text-[#4a6fa5] mb-1">Post-COVID</div>
-                    <div className="text-2xl font-bold text-emerald-400">2023–2026</div>
-                    <div className="text-xs text-[#4a6fa5]">AI + Hybrid Learning</div>
+
+                  <div className="glass-card p-5 border-emerald-500/30 bg-emerald-500/5 relative overflow-hidden">
+                    <div className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-1">ERA POST-COVID</div>
+                    <div className="text-2xl font-black text-white mb-2">2023–2026</div>
+                    <p className="text-xs text-slate-300 leading-relaxed mb-3">
+                      Pengintegrasian AI, media remedi berbasis WebAR/VR, dan model pembelajaran *Hybrid / Blended Learning*.
+                    </p>
+                    <span className="badge badge-emerald text-[10px]">Fokus: AI & Remediasi Hybrid</span>
                   </div>
                 </div>
               </div>

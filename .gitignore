@@ -36,3 +36,13 @@ backend/.env
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Data Export
+conceptra_artikel_indonesia.csv
+conceptra_miskonsepsi_indonesia.csv
+
+# Docs
+docs/
+
+# Databases
+backend/data/*.db

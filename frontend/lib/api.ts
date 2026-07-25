@@ -64,7 +64,7 @@ export const getMisconceptions = (params?: { domain?: string; level?: string; ye
   if (params?.domain) query.set('domain', params.domain);
   if (params?.level) query.set('level', params.level);
   if (params?.year) query.set('year', String(params.year));
-  query.set('limit', '5000');
+  query.set('limit', '10000');
   return fetchAPI<{ data: Misconception[]; total: number }>(`/api/misconceptions?${query}`);
 };
 

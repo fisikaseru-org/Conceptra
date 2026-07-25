@@ -1,6 +1,6 @@
 """
 Conceptra — Research Explorer API
-Menyediakan akses ke database 17,755 artikel penelitian fisika Indonesia (1996-2026).
+Menyediakan akses ke database 10,720 artikel penelitian fisika Indonesia (1996-2026).
 Endpoint untuk browsing, filtering, dan statistik artikel.
 """
 from fastapi import APIRouter, Query
@@ -156,24 +156,28 @@ async def get_db_stats_summary():
     conn = get_conn()
     cur = conn.cursor()
 
-    total = cur.execute("SELECT COUNT(*) FROM articles").fetchone()[0]
-    by_domain = cur.execute("""
+    base_filter = "is_indonesia_context = 1 OR is_indonesia_context IS NULL"
+
+    total = cur.execute(f"SELECT COUNT(*) FROM articles WHERE {base_filter}").fetchone()[0]
+    by_domain = cur.execute(f"""
         SELECT physics_domain, COUNT(*) as c, AVG(citation_count) as avg_cit, 
                MAX(citation_count) as max_cit, SUM(citation_count) as total_cit
         FROM articles
+        WHERE {base_filter}
         GROUP BY physics_domain 
         ORDER BY c DESC
     """).fetchall()
-    by_year = cur.execute("""
+    by_year = cur.execute(f"""
         SELECT year, COUNT(*) as c, SUM(citation_count) as total_cit
         FROM articles
+        WHERE {base_filter}
         GROUP BY year ORDER BY year ASC
     """).fetchall()
-    by_language = cur.execute("SELECT language, COUNT(*) as c FROM articles GROUP BY language").fetchall()
-    by_evidence = cur.execute("SELECT evidence_level, COUNT(*) as c FROM articles GROUP BY evidence_level ORDER BY c DESC").fetchall()
+    by_language = cur.execute(f"SELECT language, COUNT(*) as c FROM articles WHERE {base_filter} GROUP BY language").fetchall()
+    by_evidence = cur.execute(f"SELECT evidence_level, COUNT(*) as c FROM articles WHERE {base_filter} GROUP BY evidence_level ORDER BY c DESC").fetchall()
 
     # Decade breakdown
-    decades = cur.execute("""
+    decades = cur.execute(f"""
         SELECT 
             CASE 
                 WHEN year BETWEEN 1996 AND 2004 THEN '1996-2004'
@@ -184,23 +188,24 @@ async def get_db_stats_summary():
             COUNT(*) as c,
             AVG(citation_count) as avg_cit
         FROM articles
+        WHERE {base_filter}
         GROUP BY decade
         ORDER BY decade
     """).fetchall()
 
-    top_journals = cur.execute("""
+    top_journals = cur.execute(f"""
         SELECT journal, COUNT(*) as c, AVG(citation_count) as avg_cit
         FROM articles
-        WHERE journal IS NOT NULL AND journal != ''
+        WHERE journal IS NOT NULL AND journal != '' AND ({base_filter})
         GROUP BY journal
         ORDER BY c DESC
         LIMIT 20
     """).fetchall()
 
-    top_cited = cur.execute("""
+    top_cited = cur.execute(f"""
         SELECT title, journal, year, citation_count, physics_domain, doi
         FROM articles
-        WHERE citation_count > 0
+        WHERE citation_count > 0 AND ({base_filter})
         ORDER BY citation_count DESC
         LIMIT 10
     """).fetchall()
@@ -247,9 +252,10 @@ async def get_article_detail(article_id: str):
     except Exception:
         pass
 
-    # Get related misconceptions
+    # Get related misconceptions — include extracted_sentence for full context
     misc_rows = cur.execute("""
-        SELECT misconception_text, concept, confidence, prevalence_pct, remediation, assessment_tool
+        SELECT misconception_text, extracted_sentence, concept, confidence,
+               prevalence_pct, remediation, assessment_tool, extraction_method
         FROM extracted_misconceptions
         WHERE article_id = ?
         ORDER BY confidence DESC
@@ -280,11 +286,13 @@ async def get_article_detail(article_id: str):
         "extracted_misconceptions": [
             {
                 "text": m["misconception_text"],
+                "source_sentence": m["extracted_sentence"],  # full sentence from abstract
                 "concept": m["concept"],
                 "confidence": m["confidence"],
                 "prevalence_pct": m["prevalence_pct"],
                 "remediation": m["remediation"],
                 "assessment_tool": m["assessment_tool"],
+                "extraction_method": m["extraction_method"],
             }
             for m in misc_rows
         ]

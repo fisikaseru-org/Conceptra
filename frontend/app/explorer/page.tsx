@@ -9,7 +9,8 @@ import {
   Link2, Quote, Activity
 } from 'lucide-react';
 import {
-  getExplorerArticles, getExplorerStats, type ArticleSummary, type DbStatsSummary
+  getExplorerArticles, getExplorerStats, getExplorerArticleDetail,
+  type ArticleSummary, type DbStatsSummary
 } from '@/lib/api';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -331,9 +332,44 @@ function StatsPanel({ stats }: { stats: DbStatsSummary }) {
   );
 }
 
+// ─── Misconception type (from detail endpoint) ────────────────────────────────
+interface ExtractedMisconception {
+  text: string;
+  source_sentence: string | null;  // full sentence from abstract
+  concept: string;
+  confidence: number;
+  prevalence_pct: number;
+  remediation: string | null;
+  assessment_tool: string | null;
+  extraction_method: string | null;
+}
+
+interface ArticleDetail extends ArticleSummary {
+  abstract: string | null;
+  extracted_misconceptions: ExtractedMisconception[];
+  scopus_id: string | null;
+  source: string | null;
+}
+
 // ─── Article Detail Modal ─────────────────────────────────────────────────────
 function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onClose: () => void }) {
+  const [detail, setDetail] = useState<ArticleDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(true);
   const domainColor = DOMAIN_COLORS[article.physics_domain || ''] || '#64748b';
+
+  // Fetch full detail (abstract + all misconceptions) on open
+  useEffect(() => {
+    setDetailLoading(true);
+    getExplorerArticleDetail(article.id)
+      .then((d: any) => {
+        setDetail(d);
+        setDetailLoading(false);
+      })
+      .catch(() => setDetailLoading(false));
+  }, [article.id]);
+
+  const misconceptions: ExtractedMisconception[] = detail?.extracted_misconceptions ?? [];
+  const fullAbstract = detail?.abstract ?? article.abstract_preview ?? null;
 
   return (
     <motion.div
@@ -348,7 +384,7 @@ function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onC
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={e => e.stopPropagation()}
-        className="glass-card border border-slate-700/60 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-2xl"
+        className="glass-card border border-slate-700/60 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl"
       >
         <div className="p-6">
           {/* Header */}
@@ -399,13 +435,95 @@ function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onC
             </div>
           </div>
 
-          {/* Abstract */}
-          {article.abstract_preview && (
+          {/* Full Abstract */}
+          {fullAbstract && (
             <div className="mb-5">
               <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Abstrak</h4>
-              <p className="text-sm text-slate-300 leading-relaxed">{article.abstract_preview}</p>
+              <p className="text-sm text-slate-300 leading-relaxed whitespace-pre-line">{fullAbstract}</p>
             </div>
           )}
+
+          {/* ─── Extracted Misconceptions ──────────────────────────────── */}
+          <div className="mb-5">
+            <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <Zap size={12} className="text-amber-400" />
+              Miskonsepsi yang Ditemukan
+              {!detailLoading && (
+                <span className="ml-auto text-amber-400 font-bold text-xs">{misconceptions.length} item</span>
+              )}
+            </h4>
+
+            {detailLoading ? (
+              <div className="space-y-2">
+                {[1, 2].map(i => (
+                  <div key={i} className="h-14 bg-slate-800/50 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            ) : misconceptions.length === 0 ? (
+              <div className="text-center py-6 rounded-xl bg-slate-800/30 border border-slate-700/30">
+                <FileText size={24} className="text-slate-600 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">Belum ada miskonsepsi yang diekstrak dari artikel ini.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {misconceptions.map((m, i) => {
+                  const confColor = m.confidence >= 0.8 ? '#10b981' : m.confidence >= 0.5 ? '#f59e0b' : '#ef4444';
+                  return (
+                    <div key={i} className="rounded-xl border border-slate-700/40 bg-slate-800/30 p-4">
+                      {/* Misconception text — complete, no truncation */}
+                      <p className="text-sm text-slate-100 leading-relaxed mb-3">
+                        <span className="text-amber-400 font-bold mr-2">#{i + 1}</span>
+                        {m.text}
+                      </p>
+
+                      {/* Source sentence blockquote — full context from abstract */}
+                      {m.source_sentence && m.source_sentence !== m.text && (
+                        <blockquote className="mt-2 mb-3 border-l-2 border-slate-600 pl-3">
+                          <p className="text-xs text-slate-500 italic leading-relaxed">{m.source_sentence}</p>
+                          <p className="text-[10px] text-slate-600 mt-1 flex items-center gap-1">
+                            <Quote size={8} /> Kalimat sumber dari abstrak
+                          </p>
+                        </blockquote>
+                      )}
+
+                      {/* Metadata row */}
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        {/* Concept */}
+                        {m.concept && (
+                          <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-blue-500/10 text-blue-300 border border-blue-500/20">
+                            <Layers size={9} /> {m.concept}
+                          </span>
+                        )}
+                        {/* Confidence */}
+                        <span className="flex items-center gap-1 px-2 py-1 rounded-lg border"
+                          style={{ background: `${confColor}10`, color: confColor, borderColor: `${confColor}30` }}>
+                          <Activity size={9} /> Confidence: {(m.confidence * 100).toFixed(0)}%
+                        </span>
+                        {/* Prevalence */}
+                        {m.prevalence_pct > 0 && (
+                          <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-purple-500/10 text-purple-300 border border-purple-500/20">
+                            <BarChart3 size={9} /> Persentase Siswa: {m.prevalence_pct.toFixed(1)}%
+                          </span>
+                        )}
+                        {/* Remediation */}
+                        {m.remediation && (
+                          <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                            <Zap size={9} /> {m.remediation}
+                          </span>
+                        )}
+                        {/* Assessment Tool */}
+                        {m.assessment_tool && (
+                          <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-slate-700/60 text-slate-300 border border-slate-600/40">
+                            <Award size={9} /> {m.assessment_tool}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Keywords */}
           {Array.isArray(article.keywords) && article.keywords.length > 0 && (
@@ -421,24 +539,17 @@ function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onC
 
           {/* Action links */}
           <div className="flex gap-3 flex-wrap pt-4 border-t border-slate-800">
-            {article.doi && (
-              <a href={`https://doi.org/${article.doi}`} target="_blank" rel="noopener noreferrer"
+            {article.doi && !article.doi.startsWith('http') ? (
+              <a href={article.doi.includes('doi.org') ? article.doi : `https://doi.org/${article.doi}`} target="_blank" rel="noopener noreferrer"
                 className="btn-primary flex items-center gap-2 text-xs">
                 <ExternalLink size={12} /> Buka DOI
               </a>
-            )}
-            {article.open_access_url && (
-              <a href={article.open_access_url} target="_blank" rel="noopener noreferrer"
-                className="btn-secondary flex items-center gap-2 text-xs">
-                <BookMarked size={12} /> Open Access
+            ) : (article.doi?.startsWith('http') || article.url || article.open_access_url) ? (
+              <a href={(article.doi?.startsWith('http') ? article.doi : (article.url || article.open_access_url)) || ''} target="_blank" rel="noopener noreferrer"
+                className="btn-primary flex items-center gap-2 text-xs">
+                <Link2 size={12} /> Buka Artikel
               </a>
-            )}
-            {article.url && !article.doi && (
-              <a href={article.url} target="_blank" rel="noopener noreferrer"
-                className="btn-secondary flex items-center gap-2 text-xs">
-                <Link2 size={12} /> Sumber
-              </a>
-            )}
+            ) : null}
           </div>
         </div>
       </motion.div>
@@ -468,7 +579,7 @@ export default function ResearchExplorerPage() {
   const [searchInput, setSearchInput] = useState('');
   const [page, setPage] = useState(1);
 
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   // Load stats once
   useEffect(() => {
@@ -541,7 +652,7 @@ export default function ResearchExplorerPage() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">Research Explorer</h1>
-              <p className="text-sm text-slate-500">Database 17.755 artikel penelitian fisika Indonesia (1996–2026)</p>
+              <p className="text-sm text-slate-500">Database 10.720 artikel penelitian fisika konteks Indonesia (1996–2026)</p>
             </div>
           </div>
 

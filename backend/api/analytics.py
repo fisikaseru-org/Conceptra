@@ -54,17 +54,20 @@ async def get_overview():
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM extracted_misconceptions")
-        db_total_misc = cursor.fetchone()[0]
-
         cursor.execute("SELECT COUNT(*) FROM articles WHERE (is_indonesia_context = 1 OR is_indonesia_context IS NULL) AND year >= 1996 AND year <= 2026")
         db_total_articles = cursor.fetchone()[0]
         
-        cursor.execute("SELECT SUM(prevalence_pct) FROM extracted_misconceptions")
-        db_total_freq = int(cursor.fetchone()[0] or 0)
-        
-        cursor.execute("SELECT COUNT(DISTINCT concept) FROM extracted_misconceptions")
-        db_total_domains = cursor.fetchone()[0]
+        cursor.execute("""
+            SELECT COUNT(e.id), SUM(COALESCE(e.prevalence_pct, 50)), COUNT(DISTINCT a.physics_domain)
+            FROM extracted_misconceptions e
+            JOIN articles a ON e.article_id = a.id
+            WHERE (a.is_indonesia_context = 1 OR a.is_indonesia_context IS NULL) 
+            AND a.year >= 1996 AND a.year <= 2026
+        """)
+        row = cursor.fetchone()
+        db_total_misc = row[0]
+        db_total_freq = int(row[1] or 0)
+        db_total_domains = row[2]
         conn.close()
     except Exception:
         db_total_articles = 10000

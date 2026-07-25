@@ -15,7 +15,7 @@ def export_all():
     cur = conn.cursor()
     
     cur.execute("""
-        SELECT e.*, a.doi, a.title, a.authors, a.journal, a.year, a.physics_domain, a.evidence_level, a.scopus_id
+        SELECT e.*, a.doi, a.title, a.authors, a.journal, a.year, a.physics_domain, a.evidence_level, a.scopus_id, a.url, a.open_access_url
         FROM extracted_misconceptions e
         JOIN articles a ON e.article_id = a.id
         WHERE (a.is_indonesia_context = 1 OR a.is_indonesia_context IS NULL) AND a.year >= 1996 AND a.year <= 2026
@@ -67,6 +67,8 @@ def export_all():
             "keywords": [row["concept"]] if row["concept"] else [],
             "references": refs,
             "doi": row["doi"],
+            "url": row["url"],
+            "open_access_url": row["open_access_url"],
             "scopus_id": row["scopus_id"],
             "source": "openalex",
             "frequency_methodology": row["extraction_method"],
