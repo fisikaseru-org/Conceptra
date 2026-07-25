@@ -234,6 +234,20 @@ async def startup_event():
     """Pre-load semua layer yang dibutuhkan."""
     logger.info("[Conceptra v2.0.0] Starting up...")
 
+    # Database Decompression for Deployment (Render/Railway)
+    import gzip
+    import shutil
+    import os
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    db_path = os.path.join(BASE_DIR, "data", "conceptra.db")
+    db_gz_path = os.path.join(BASE_DIR, "data", "conceptra.db.gz")
+    if not os.path.exists(db_path) and os.path.exists(db_gz_path):
+        logger.info("Extracting conceptra.db.gz for first-time setup...")
+        with gzip.open(db_gz_path, 'rb') as f_in:
+            with open(db_path, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        logger.info("Database extraction complete.")
+
     # Corpus
     from core.corpus import PHYSICS_MISCONCEPTIONS
     has_fabricated = any(m.get("source") == "fabricated" or not m.get("doi") for m in PHYSICS_MISCONCEPTIONS)
