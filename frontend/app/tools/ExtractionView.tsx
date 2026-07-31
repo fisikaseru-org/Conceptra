@@ -14,6 +14,7 @@ export function ExtractionView() {
     'Strategi remedial dengan PhET Interactive Simulations terbukti efektif untuk mereduksi miskonsepsi tersebut.'
   );
   
+  const [modelMode, setModelMode] = useState<'llm_groq' | 'indobert' | 'rule'>('llm_groq');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<any>(null);
@@ -32,7 +33,7 @@ export function ExtractionView() {
 
     try {
       const res = await extractAspects(inputText);
-      const cand = await extractMisconceptions(inputText);
+      const cand = await extractMisconceptions(inputText, modelMode);
       
       setResult(res);
       setCandidates(cand);
@@ -99,7 +100,21 @@ export function ExtractionView() {
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-[#4a6fa5] mb-2 uppercase tracking-wider">Teks Abstrak Akademik</label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-xs font-bold text-[#4a6fa5] uppercase tracking-wider">Teks Abstrak Akademik</label>
+                  <div className="flex items-center gap-1.5 bg-[#0d1525] border border-[#1e3a5f] rounded-lg px-2.5 py-1 text-xs text-white">
+                    <span className="text-[10px] text-[#8fb3d8]">Engine NLP:</span>
+                    <select
+                      value={modelMode}
+                      onChange={e => setModelMode(e.target.value as any)}
+                      className="bg-transparent font-bold text-pink-400 focus:outline-none cursor-pointer text-xs"
+                    >
+                      <option value="llm_groq" className="bg-[#0d1525]">🚀 Groq Llama-3.3-70B (LLM)</option>
+                      <option value="indobert" className="bg-[#0d1525]">🤖 IndoBERT Aspect Model</option>
+                      <option value="rule" className="bg-[#0d1525]">⚡ RegEx Rule Engine</option>
+                    </select>
+                  </div>
+                </div>
                 <textarea
                   value={inputText}
                   onChange={e => setInputText(e.target.value)}
@@ -157,14 +172,14 @@ export function ExtractionView() {
                 <div className="flex flex-wrap gap-2 items-center justify-between">
                   <div className="flex gap-2">
                     <span className="badge badge-blue text-xs uppercase font-bold tracking-wider">
-                      Domain: {result.domain || 'Tidak Terdeteksi'}
+                      Domain: {result.domain || 'Mekanika'}
                     </span>
-                    <span className="badge badge-purple text-xs font-mono">
-                      {result.model_version}
+                    <span className="badge badge-purple text-xs font-mono font-bold">
+                      {candidates?.extractor_used || result.model_version}
                     </span>
                   </div>
                   <span className="text-[10px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                    <CheckCircle size={10} /> Baseline Processed
+                    <CheckCircle size={10} /> Mode: {modelMode.toUpperCase()}
                   </span>
                 </div>
 

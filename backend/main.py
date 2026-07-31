@@ -43,6 +43,9 @@ from api.extraction import router as extraction_router
 from api.corpus_sync import router as corpus_sync_router
 from api.scientometrics import router as scientometrics_router
 from api.research_explorer import router as research_explorer_router
+from api.export import router as export_router
+
+
 
 # NOTE: api/chat.py DIHAPUS dari routing — melanggar constraint proyek.
 # Constraint dari design document: "JANGAN membangun chatbot".
@@ -64,38 +67,62 @@ app = FastAPI(
     license_info={"name": "MIT"},
 )
 
-# ─── CORS ───────────────────────────────────────────────────────────────────────
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+# ─── CORS Configuration ────────────────────────────────────────────────────────
+origins_env = os.getenv("ALLOWED_ORIGINS", "")
+allowed_origins = [o.strip() for o in origins_env.split(",") if o.strip()]
+if not allowed_origins:
+    allowed_origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
-    ],
+        "https://conceptra.vercel.app"
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ─── Request Logging Middleware ─────────────────────────────────────────────────
+# ─── Rate Limiter (In-Memory Sliding Window for Extraction/Heavy Endpoints) ───
+import time
+from collections import defaultdict
+
+request_history = defaultdict(list)
+RATE_LIMIT_REQUESTS = 20  # Max requests
+RATE_LIMIT_WINDOW = 60    # per 60 seconds
+
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    """Log setiap request dengan structured format."""
-    import time
-    import traceback
-    start = time.time()
+async def rate_limit_and_log_middleware(request: Request, call_next):
+    """Log request & enforce rate limiting on heavy endpoints."""
+    start_time = time.time()
+    client_ip = request.client.host if request.client else "127.0.0.1"
+
+    # Enforce rate limit on heavy endpoints
+    if request.url.path.startswith("/api/extraction/extract"):
+        now = time.time()
+        # Filter timestamps within window
+        request_history[client_ip] = [t for t in request_history[client_ip] if now - t < RATE_LIMIT_WINDOW]
+        if len(request_history[client_ip]) >= RATE_LIMIT_REQUESTS:
+            logger.warning(f"Rate limit exceeded for IP: {client_ip} on {request.url.path}")
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Too Many Requests. Rate limit exceeded (20 requests/minute)."}
+            )
+        request_history[client_ip].append(now)
+
     try:
         response = await call_next(request)
-        duration = (time.time() - start) * 1000
-        logger.info(
-            f"{request.method} {request.url.path} → {response.status_code} ({duration:.1f}ms)"
-        )
+        duration = (time.time() - start_time) * 1000
+        logger.info(f"{request.method} {request.url.path} → {response.status_code} ({duration:.1f}ms)")
         return response
     except Exception as e:
-        duration = (time.time() - start) * 1000
-        logger.error(
-            f"ERROR handling {request.method} {request.url.path}: {str(e)}\n{traceback.format_exc()}"
-        )
+        duration = (time.time() - start_time) * 1000
+        logger.error(f"ERROR {request.method} {request.url.path}: {str(e)}")
         raise e
+
 
 # ─── Register Routers ──────────────────────────────────────────────────────────
 app.include_router(
@@ -148,6 +175,13 @@ app.include_router(
     prefix="/api/explorer",
     tags=["Explorer — Research Article Database"]
 )
+app.include_router(
+    export_router,
+    prefix="/api/export",
+    tags=["Export — CSV & PDF Data Export"]
+)
+
+
 
 # ─── Root ───────────────────────────────────────────────────────────────────────
 @app.get("/", tags=["System"])

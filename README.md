@@ -1,12 +1,12 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/farrelfz/conceptra/main/frontend/public/favicon.ico" width="80" alt="Conceptra Logo" style="border-radius: 20%;" />
+  <img src="https://raw.githubusercontent.com/fisikaseru-org/Conceptra/main/frontend/public/favicon.ico" width="80" alt="Conceptra Logo" style="border-radius: 20%;" />
   <h1 align="center">Conceptra</h1>
   <p align="center">
     <strong>The Indonesian Physics Misconception Observatory (1996–2026)</strong>
   </p>
 
   <p align="center">
-    <a href="https://github.com/farrelfz/conceptra/blob/main/LICENSE">
+    <a href="https://github.com/fisikaseru-org/Conceptra/blob/main/LICENSE">
       <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge&color=8b5cf6" alt="License: MIT" />
     </a>
     <a href="https://nextjs.org/">
@@ -83,8 +83,8 @@ Untuk menjalankan Conceptra di mesin lokal Anda, ikuti langkah-langkah berikut:
 
 ### 1. Clone Repository
 ```bash
-git clone https://github.com/farrelfz/conceptra.git
-cd conceptra
+git clone https://github.com/fisikaseru-org/Conceptra.git
+cd Conceptra
 ```
 
 ### 2. Setup Backend (FastAPI)

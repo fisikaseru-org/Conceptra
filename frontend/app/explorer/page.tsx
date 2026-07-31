@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import {
   getExplorerArticles, getExplorerStats, getExplorerArticleDetail,
+  getExportCitationBibtexUrl, getExportCitationRisUrl, getExportArticlesCsvUrl,
   type ArticleSummary, type DbStatsSummary
 } from '@/lib/api';
 import {
@@ -550,7 +551,14 @@ function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onC
                 <Link2 size={12} /> Buka Artikel
               </a>
             ) : null}
+            <a href={getExportCitationBibtexUrl(article.id)} download className="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl border border-slate-700 font-medium transition-colors">
+              <Download size={12} className="text-blue-400" /> Sitasi BibTeX
+            </a>
+            <a href={getExportCitationRisUrl(article.id)} download className="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl border border-slate-700 font-medium transition-colors">
+              <Download size={12} className="text-purple-400" /> Sitasi RIS (EndNote)
+            </a>
           </div>
+
         </div>
       </motion.div>
     </motion.div>
@@ -656,21 +664,33 @@ export default function ResearchExplorerPage() {
             </div>
           </div>
 
-          {/* Quick stats bar */}
-          <div className="mt-4 flex flex-wrap gap-3">
-            {stats && [
-              { label: 'Artikel', value: stats.total_articles.toLocaleString('id-ID'), color: '#3b82f6', icon: FileText },
-              { label: 'Bahasa Indonesia', value: (stats.by_language.find(l => l.language === 'id')?.count || 0).toLocaleString('id-ID'), color: '#10b981', icon: Globe },
-              { label: 'Terindeks DOI', value: stats.by_domain.filter(d => d.count > 0).length + ' domain', color: '#8b5cf6', icon: Layers },
-              { label: 'Jurnal Unik', value: stats.top_journals.length + '+', color: '#f59e0b', icon: BookOpen },
-            ].map(stat => (
-              <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/50">
-                <stat.icon size={12} style={{ color: stat.color }} />
-                <span className="text-xs text-slate-400">{stat.label}:</span>
-                <span className="text-xs font-bold" style={{ color: stat.color }}>{stat.value}</span>
-              </div>
-            ))}
+          {/* Quick stats bar + Bulk Export */}
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap gap-3">
+              {stats && [
+                { label: 'Artikel', value: stats.total_articles.toLocaleString('id-ID'), color: '#3b82f6', icon: FileText },
+                { label: 'Bahasa Indonesia', value: (stats.by_language.find(l => l.language === 'id')?.count || 0).toLocaleString('id-ID'), color: '#10b981', icon: Globe },
+                { label: 'Terindeks DOI', value: stats.by_domain.filter(d => d.count > 0).length + ' domain', color: '#8b5cf6', icon: Layers },
+                { label: 'Jurnal Unik', value: stats.top_journals.length + '+', color: '#f59e0b', icon: BookOpen },
+              ].map(stat => (
+                <div key={stat.label} className="flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-900/50">
+                  <stat.icon size={12} style={{ color: stat.color }} />
+                  <span className="text-xs text-slate-400">{stat.label}:</span>
+                  <span className="text-xs font-bold" style={{ color: stat.color }}>{stat.value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a href={getExportArticlesCsvUrl()} download className="flex items-center gap-1.5 text-xs bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 px-3 py-1.5 rounded-xl border border-blue-500/30 font-medium transition-colors">
+                <Download size={12} /> Export CSV
+              </a>
+              <a href={getExportCitationBibtexUrl()} download className="flex items-center gap-1.5 text-xs bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 px-3 py-1.5 rounded-xl border border-purple-500/30 font-medium transition-colors">
+                <Download size={12} /> BibTeX (Top 100)
+              </a>
+            </div>
           </div>
+
         </motion.div>
 
         <div className="grid grid-cols-1 xl:grid-cols-[340px_1fr] gap-6">

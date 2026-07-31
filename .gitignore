@@ -46,3 +46,5 @@ docs/
 
 # Databases
 backend/data/*.db
+backend/data/backups/
+

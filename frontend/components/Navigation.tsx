@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
   Brain, Map, TrendingUp, Shield, Search, Zap,
-  Database, Layers, Binary
+  Database, Layers, Binary, BookOpen, Award
 } from 'lucide-react';
 
 export default function Navigation() {
@@ -18,8 +18,12 @@ export default function Navigation() {
     { href: '/topics', icon: TrendingUp, label: 'Evolusi Topik' },
     { href: '/research-insights', icon: Search, label: 'Wawasan' },
     { href: '/tools', icon: Binary, label: 'Tools' },
-    { href: '/validation', icon: Shield, label: 'Validasi' }
+    { href: '/validation', icon: Shield, label: 'Validasi' },
+    { href: '/docs', icon: BookOpen, label: 'Docs' }
   ];
+
+
+
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-slate-800/40 bg-[#0B1120]/80 backdrop-blur-xl">

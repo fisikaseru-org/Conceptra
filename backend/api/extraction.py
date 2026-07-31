@@ -11,6 +11,7 @@ router = APIRouter()
 class ExtractionRequest(BaseModel):
     text: str
     include_relations: bool = True
+    model_mode: Optional[str] = "llm_groq"  # 'rule', 'indobert', or 'llm_groq'
 
 
 class BatchExtractionRequest(BaseModel):
@@ -83,20 +84,25 @@ async def evaluate_extractor(request: EvaluationRequest):
 async def extract_misconception_candidates(request: ExtractionRequest):
     """
     Ekstraksi khusus kandidat miskonsepsi dari teks abstrak/artikel.
-    Setiap kandidat memerlukan validasi pakar sebelum masuk corpus.
+    Mendukung pilihan model: 'llm_groq' (Llama-3.3-70B), 'indobert', atau 'rule'.
     """
-    from core.aspect_extractor import get_aspect_extractor
-    extractor = get_aspect_extractor()
-    result = extractor.extract(request.text)
+    if len(request.text.strip()) < 10:
+        raise HTTPException(status_code=400, detail="Teks terlalu pendek untuk diekstraksi.")
+
+    from core.llm_extractor import get_groq_extractor
+    groq_extractor = get_groq_extractor()
+    extracted_data = groq_extractor.extract(request.text, model_mode=request.model_mode or "llm_groq")
 
     return {
-        "misconception_candidates": result.misconception_candidates,
-        "total_candidates": len(result.misconception_candidates),
-        "domain": result.domain,
+        "status": "success",
+        "model_mode": request.model_mode or "llm_groq",
+        "extractor_used": extracted_data.get("extractor_used", "Rule Engine"),
+        "misconceptions": extracted_data.get("misconceptions", []),
+        "extracted_aspects": extracted_data.get("extracted_aspects", {}),
         "validation_required": True,
         "validation_note": (
             "Semua kandidat ini HARUS divalidasi oleh minimal 2 pakar bidang fisika "
-            "sebelum dimasukkan ke corpus. Gunakan endpoint /api/validation/cohens-kappa "
+            "sebelum dimasukkan ke corpus. Gunakan endpoint /api/validation/annotate "
             "untuk mengukur inter-rater agreement."
         )
     }

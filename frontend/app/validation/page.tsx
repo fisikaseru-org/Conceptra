@@ -4,17 +4,21 @@ import { useEffect, useState } from 'react';
 import { 
   Shield, CheckCircle, AlertTriangle, XCircle, BarChart3,
   FileText, Activity, HelpCircle, RefreshCcw, ChevronRight,
-  TrendingDown, Info, ShieldAlert, Award, Database, Play, Square, Loader2
+  TrendingDown, Info, ShieldAlert, Award, Database, Play, Square, Loader2,
+  UserCheck, ThumbsUp, ThumbsDown, Check, X, Download, Printer, Star
 } from 'lucide-react';
 import { 
   getCorpusAudit, getMetadataQuality, getPrismaFlowchart,
   detectBiases, getThreatAnalysis, getEvidenceSummary,
   computeValidationMetrics, computeCohenKappa,
-  getSyncStatus, startSync, stopSync
+  getSyncStatus, startSync, stopSync,
+  submitExpertAnnotation, getExpertAnnotations, getLiveCohenKappa,
+  getMisconceptions, submitSusSurvey, getSusSummary,
+  getExportMisconceptionsCsvUrl, getExportArticlesCsvUrl, getExportPdfReportUrl
 } from '@/lib/api';
 
 export default function ValidationPage() {
-  const [activeTab, setActiveTab] = useState<'audit' | 'quality' | 'sync' | 'calculator'>('audit');
+  const [activeTab, setActiveTab] = useState<'audit' | 'quality' | 'sync' | 'calculator' | 'expert' | 'sus'>('audit');
   
   // Data states
   const [corpusAudit, setCorpusAudit] = useState<any>(null);
@@ -26,12 +30,65 @@ export default function ValidationPage() {
   const [syncStatus, setSyncStatus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  // Expert Portal States
+  const [expertAnnotations, setExpertAnnotations] = useState<any>(null);
+  const [liveKappa, setLiveKappa] = useState<any>(null);
+  const [misconceptionsList, setMisconceptionsList] = useState<any[]>([]);
+  const [annotatorId, setAnnotatorId] = useState('Expert_A');
+
+  // SUS Evaluation States
+  const [susSummary, setSusSummary] = useState<any>(null);
+  const [susRole, setSusRole] = useState('guru');
+  const [susAnswers, setSusAnswers] = useState<number[]>([4, 2, 4, 2, 4, 2, 4, 2, 4, 2]);
+  const [susFeedback, setSusFeedback] = useState('');
+  const [susResult, setSusResult] = useState<any>(null);
+
+  const susQuestions = [
+    "Saya merasa ingin menggunakan platform Conceptra ini secara rutin untuk analisis miskonsepsi.",
+    "Saya merasa platform Conceptra terlalu rumit untuk digunakan.",
+    "Saya merasa platform Conceptra sangat mudah untuk digunakan.",
+    "Saya merasa membutuhkan bantuan teknis untuk dapat menggunakan platform ini.",
+    "Saya merasa fungsi-fungsi dalam platform Conceptra ini terintegrasi dengan sangat baik.",
+    "Saya merasa ada banyak hal yang tidak konsisten pada platform ini.",
+    "Saya rasa kebanyakan orang akan dapat mempelajari platform ini dengan sangat cepat.",
+    "Saya merasa platform ini sangat membingungkan saat digunakan.",
+    "Saya merasa sangat percaya diri saat menggunakan platform Conceptra.",
+    "Saya perlu mempelajari banyak hal terlebih dahulu sebelum saya dapat menggunakan platform ini."
+  ];
+
   // Calculator states
   const [calcType, setCalcType] = useState<'kappa' | 'metrics'>('kappa');
   const [calcInputA, setCalcInputA] = useState('MEC, MEC, TERM, ELE, MEC, OPT, OPT, ELE');
   const [calcInputB, setCalcInputB] = useState('MEC, TERM, TERM, ELE, MEC, OPT, GEL, ELE');
   const [calcOutput, setCalcOutput] = useState<any>(null);
   const [calcError, setCalcError] = useState<string | null>(null);
+
+  const fetchSusData = () => {
+    getSusSummary().then(res => setSusSummary(res)).catch(() => null);
+  };
+
+  const handleSusSubmit = async () => {
+    try {
+      const res = await submitSusSurvey(susRole, susAnswers, susFeedback);
+      setSusResult(res);
+      fetchSusData();
+    } catch (e: any) {
+      alert(e.message || 'Gagal mengirim survei SUS.');
+    }
+  };
+
+  const fetchExpertData = () => {
+    Promise.all([
+      getExpertAnnotations().catch(() => null),
+      getLiveCohenKappa().catch(() => null),
+      getMisconceptions().catch(() => null)
+    ]).then(([annots, kappa, misc]) => {
+      setExpertAnnotations(annots);
+      setLiveKappa(kappa);
+      if (misc?.data) setMisconceptionsList(misc.data.slice(0, 30));
+    });
+    fetchSusData();
+  };
 
   const fetchData = () => {
     setLoading(true);
@@ -53,6 +110,16 @@ export default function ValidationPage() {
       setSyncStatus(sync);
       setLoading(false);
     });
+    fetchExpertData();
+  };
+
+  const handleAnnotate = async (itemId: string, verdict: 'agreed' | 'disagreed') => {
+    try {
+      await submitExpertAnnotation(itemId, verdict, annotatorId);
+      fetchExpertData();
+    } catch (e: any) {
+      alert(e.message || 'Gagal menyimpan anotasi.');
+    }
   };
 
   useEffect(() => {
@@ -142,12 +209,38 @@ export default function ValidationPage() {
               Audit kredibilitas ilmiah, metrik validitas, dan pemanenan corpus publikasi Scopus.
             </p>
           </div>
-          <button 
-            onClick={fetchData}
-            className="btn-secondary self-start md:self-auto flex items-center gap-2 text-xs py-2 px-3"
-          >
-            <RefreshCcw size={13} /> Refresh Audit
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+            <a 
+              href={getExportMisconceptionsCsvUrl()}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary flex items-center gap-1.5 text-xs py-2 px-3 hover:border-blue-500/40 text-blue-300"
+            >
+              <Download size={13} /> Export CSV (Miskonsepsi)
+            </a>
+            <a 
+              href={getExportArticlesCsvUrl()}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary flex items-center gap-1.5 text-xs py-2 px-3 hover:border-emerald-500/40 text-emerald-300"
+            >
+              <Download size={13} /> Export CSV (Artikel)
+            </a>
+            <a 
+              href={getExportPdfReportUrl()}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary flex items-center gap-1.5 text-xs py-2 px-3 hover:border-amber-500/40 text-amber-300"
+            >
+              <Printer size={13} /> Laporan PDF / Cetak
+            </a>
+            <button 
+              onClick={fetchData}
+              className="btn-secondary flex items-center gap-2 text-xs py-2 px-3"
+            >
+              <RefreshCcw size={13} /> Refresh
+            </button>
+          </div>
         </div>
 
         {/* Status Alert Banner */}
@@ -168,10 +261,10 @@ export default function ValidationPage() {
         )}
 
         {/* Tab Controls */}
-        <div className="flex border-b border-[#1e3a5f]/30">
+        <div className="flex border-b border-[#1e3a5f]/30 overflow-x-auto">
           <button 
             onClick={() => setActiveTab('audit')}
-            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'audit' ? 'border-blue-500 text-white' : 'border-transparent text-[#4a6fa5] hover:text-white'
             }`}
           >
@@ -179,7 +272,7 @@ export default function ValidationPage() {
           </button>
           <button 
             onClick={() => setActiveTab('quality')}
-            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'quality' ? 'border-blue-500 text-white' : 'border-transparent text-[#4a6fa5] hover:text-white'
             }`}
           >
@@ -187,7 +280,7 @@ export default function ValidationPage() {
           </button>
           <button 
             onClick={() => setActiveTab('sync')}
-            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'sync' ? 'border-blue-500 text-white' : 'border-transparent text-[#4a6fa5] hover:text-white'
             }`}
           >
@@ -195,11 +288,27 @@ export default function ValidationPage() {
           </button>
           <button 
             onClick={() => setActiveTab('calculator')}
-            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 ${
+            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
               activeTab === 'calculator' ? 'border-blue-500 text-white' : 'border-transparent text-[#4a6fa5] hover:text-white'
             }`}
           >
             🧮 Calculator
+          </button>
+          <button 
+            onClick={() => setActiveTab('expert')}
+            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
+              activeTab === 'expert' ? 'border-blue-500 text-white' : 'border-transparent text-[#4a6fa5] hover:text-white'
+            }`}
+          >
+            ✍️ Expert Portal
+          </button>
+          <button 
+            onClick={() => setActiveTab('sus')}
+            className={`px-6 py-3 font-semibold text-sm transition-all border-b-2 whitespace-nowrap ${
+              activeTab === 'sus' ? 'border-blue-500 text-white' : 'border-transparent text-[#4a6fa5] hover:text-white'
+            }`}
+          >
+            ⭐ SUS Evaluation
           </button>
         </div>
 
@@ -737,6 +846,305 @@ export default function ValidationPage() {
                       </p>
                     </div>
                   )}
+
+                </div>
+
+              </div>
+            )}
+
+            {/* Tab 5: Expert Validation Portal */}
+            {activeTab === 'expert' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* Misconception List & Rating */}
+                <div className="lg:col-span-2 glass-card p-6 space-y-6">
+                  <div className="flex items-center justify-between border-b border-[#1e3a5f]/20 pb-3">
+                    <div>
+                      <h2 className="font-bold text-lg text-white">Interactive Expert Verification Portal</h2>
+                      <p className="text-[#8fb3d8] text-xs mt-1">
+                        Antarmuka verifikasi langsung untuk Dosen / Pakar Fisika dalam mengevaluasi kebenaran miskonsepsi teridentifikasi.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-[#0d1525] border border-[#1e3a5f] rounded-xl px-3 py-1.5 text-xs text-white">
+                      <UserCheck size={14} className="text-blue-400" />
+                      <span className="text-[#8fb3d8]">Role:</span>
+                      <select 
+                        value={annotatorId} 
+                        onChange={e => setAnnotatorId(e.target.value)}
+                        className="bg-transparent font-bold text-blue-400 focus:outline-none cursor-pointer"
+                      >
+                        <option value="Expert_A" className="bg-[#0d1525]">Pakar A (Validator 1)</option>
+                        <option value="Expert_B" className="bg-[#0d1525]">Pakar B (Validator 2)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 max-h-[550px] overflow-y-auto pr-2">
+                    {misconceptionsList.length > 0 ? (
+                      misconceptionsList.map((m: any) => {
+                        const existingAnnot = expertAnnotations?.annotations?.find(
+                          (a: any) => a.item_id === m.id && a.annotator_id === annotatorId
+                        );
+                        return (
+                          <div key={m.id} className="p-4 rounded-xl border border-[#1e3a5f]/40 bg-[#070b14]/60 space-y-3 hover:border-blue-500/30 transition-all">
+                            <div className="flex items-start justify-between gap-3">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="badge badge-blue text-[10px] uppercase font-bold">{m.id}</span>
+                                  <span className="text-xs text-blue-400 font-semibold">{m.domain}</span>
+                                </div>
+                                <h3 className="font-bold text-white text-sm mt-1.5">{m.misconception}</h3>
+                                <p className="text-xs text-[#8fb3d8] mt-1"><strong>Konsep:</strong> {m.concept}</p>
+                              </div>
+                              
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <button
+                                  onClick={() => handleAnnotate(m.id, 'agreed')}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                                    existingAnnot?.verdict === 'agreed'
+                                      ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20'
+                                      : 'bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/20'
+                                  }`}
+                                >
+                                  <ThumbsUp size={13} /> Setuju
+                                </button>
+                                <button
+                                  onClick={() => handleAnnotate(m.id, 'disagreed')}
+                                  className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all ${
+                                    existingAnnot?.verdict === 'disagreed'
+                                      ? 'bg-red-500 text-white shadow-lg shadow-red-500/20'
+                                      : 'bg-red-500/10 text-red-300 hover:bg-red-500/20 border border-red-500/20'
+                                  }`}
+                                >
+                                  <ThumbsDown size={13} /> Tolak / Revisi
+                                </button>
+                              </div>
+                            </div>
+                            
+                            {m.root_cause && (
+                              <div className="text-[11px] text-[#4a6fa5] bg-[#0d1525] p-2.5 rounded-lg border border-[#1e3a5f]/20">
+                                <strong>Akar Masalah:</strong> {m.root_cause}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-12 text-[#4a6fa5] text-xs">
+                        Memuat daftar miskonsepsi teridentifikasi...
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Real-time Cohen's Kappa & Stats Panel */}
+                <div className="space-y-6">
+                  
+                  {/* Real-time Kappa Score Card */}
+                  <div className="glass-card p-6 space-y-4">
+                    <div className="border-b border-[#1e3a5f]/20 pb-3 flex items-center justify-between">
+                      <h3 className="font-bold text-base text-white">Live Inter-Rater Reliability</h3>
+                      <Award size={18} className="text-amber-400" />
+                    </div>
+                    
+                    <div className="text-center py-4 bg-[#0d1525] rounded-xl border border-[#1e3a5f]">
+                      <span className="text-[10px] text-[#4a6fa5] uppercase tracking-wider font-bold">Live Cohen's Kappa (κ)</span>
+                      <div className="text-4xl font-extrabold text-blue-400 mt-1">
+                        {liveKappa ? liveKappa.kappa : '0.0000'}
+                      </div>
+                      <div className="text-xs text-amber-300 font-semibold mt-2 px-2">
+                        {liveKappa?.interpretation || 'Belum Ada Anotasi'}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-xs border-t border-[#1e3a5f]/20 pt-3">
+                      <div className="flex justify-between text-[#8fb3d8]">
+                        <span>Jumlah Item Divalidasi:</span>
+                        <strong className="text-white">{expertAnnotations?.total_annotations || 0}</strong>
+                      </div>
+                      <div className="flex justify-between text-[#8fb3d8]">
+                        <span>Tingkat Kesepakatan (Agreement):</span>
+                        <strong className="text-emerald-400">{expertAnnotations?.agreement_rate || 0}%</strong>
+                      </div>
+                      <div className="flex justify-between text-[#8fb3d8]">
+                        <span>Status Publikasi (Landis & Koch):</span>
+                        <strong className={liveKappa?.acceptable_for_publication ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                          {liveKappa?.acceptable_for_publication ? '✅ SIAP PUBLIKASI (κ ≥ 0.61)' : '⚠️ BUTUH ANOTASI TAMBAHAN'}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary Instructions */}
+                  <div className="glass-card p-6 space-y-3 text-xs text-[#8fb3d8] leading-relaxed">
+                    <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                      <Info size={14} className="text-blue-400" /> Panduan Validasi Ahli:
+                    </h4>
+                    <p>
+                      1. Pilih identitas Validator (Pakar A atau Pakar B) di sudut kanan atas.
+                    </p>
+                    <p>
+                      2. Tinjau setiap deskripsi miskonsepsi fisika dan berikan penilaian <strong>Setuju</strong> atau <strong>Tolak</strong>.
+                    </p>
+                    <p>
+                      3. Skor Cohen's Kappa (κ) akan dihitung secara persisten dan dapat digunakan langsung sebagai lampiran bukti reliabilitas pada artikel prosiding Anda.
+                    </p>
+                  </div>
+
+                </div>
+
+              </div>
+            )}
+
+            {/* Tab 6: System Usability Scale (SUS) Evaluation */}
+            {activeTab === 'sus' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* 10-Item SUS Questionnaire */}
+                <div className="lg:col-span-2 glass-card p-6 space-y-6">
+                  <div className="flex items-center justify-between border-b border-[#1e3a5f]/20 pb-3">
+                    <div>
+                      <h2 className="font-bold text-lg text-white">System Usability Scale (SUS) Evaluator</h2>
+                      <p className="text-[#8fb3d8] text-xs mt-1">
+                        Instrumen evaluasi empiris (Bangor et al. 2008) untuk mengukur kelayakan & kemudahan penggunaan media Conceptra oleh pengguna (Guru / Dosen / Mahasiswa).
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 bg-[#0d1525] border border-[#1e3a5f] rounded-xl px-3 py-1.5 text-xs text-white">
+                      <Star size={14} className="text-amber-400" />
+                      <span className="text-[#8fb3d8]">Peran:</span>
+                      <select 
+                        value={susRole} 
+                        onChange={e => setSusRole(e.target.value)}
+                        className="bg-transparent font-bold text-amber-400 focus:outline-none cursor-pointer"
+                      >
+                        <option value="guru" className="bg-[#0d1525]">Guru Fisika</option>
+                        <option value="dosen" className="bg-[#0d1525]">Dosen / Akademisi</option>
+                        <option value="peneliti" className="bg-[#0d1525]">Peneliti Pendidikan</option>
+                        <option value="mahasiswa" className="bg-[#0d1525]">Mahasiswa Fisika</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                    {susQuestions.map((q, idx) => (
+                      <div key={idx} className="p-3.5 rounded-xl border border-[#1e3a5f]/30 bg-[#070b14]/50 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold text-blue-400">P{idx + 1}.</span>
+                          <p className="text-xs text-white flex-1 leading-relaxed">{q}</p>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 px-2 border-t border-[#1e3a5f]/20">
+                          <span className="text-[10px] text-red-400">Sangat Tidak Setuju (1)</span>
+                          <div className="flex gap-4">
+                            {[1, 2, 3, 4, 5].map((val) => (
+                              <label key={val} className="flex items-center gap-1 cursor-pointer">
+                                <input 
+                                  type="radio" 
+                                  name={`q_${idx}`}
+                                  value={val}
+                                  checked={susAnswers[idx] === val}
+                                  onChange={() => {
+                                    const next = [...susAnswers];
+                                    next[idx] = val;
+                                    setSusAnswers(next);
+                                  }}
+                                  className="accent-blue-500 cursor-pointer"
+                                />
+                                <span className="text-xs text-white font-mono">{val}</span>
+                              </label>
+                            ))}
+                          </div>
+                          <span className="text-[10px] text-emerald-400">Sangat Setuju (5)</span>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="pt-2">
+                      <label className="block text-xs font-bold text-white mb-2 uppercase tracking-wide">
+                        Catatan Kualitatif / Saran Perbaikan (Opsional)
+                      </label>
+                      <textarea
+                        value={susFeedback}
+                        onChange={e => setSusFeedback(e.target.value)}
+                        className="w-full bg-[#0d1525] border border-[#1e3a5f] rounded-xl p-3 text-xs text-white font-mono"
+                        rows={2}
+                        placeholder="Tulis masukan tentang kemudahan navigasi atau fitur media..."
+                      />
+                    </div>
+
+                    <button
+                      onClick={handleSusSubmit}
+                      className="btn-primary w-full text-white py-3 font-bold flex items-center justify-center gap-2 text-sm"
+                    >
+                      Kirim Evaluasi & Hitung Skor SUS
+                    </button>
+                  </div>
+                </div>
+
+                {/* Real-time SUS Summary Stats */}
+                <div className="space-y-6">
+                  
+                  {/* SUS Score Card */}
+                  <div className="glass-card p-6 space-y-4">
+                    <div className="border-b border-[#1e3a5f]/20 pb-3 flex items-center justify-between">
+                      <h3 className="font-bold text-base text-white">SUS Benchmark Score</h3>
+                      <Star size={18} className="text-amber-400" />
+                    </div>
+                    
+                    <div className="text-center py-4 bg-[#0d1525] rounded-xl border border-[#1e3a5f]">
+                      <span className="text-[10px] text-[#4a6fa5] uppercase tracking-wider font-bold">Rata-Rata Skor SUS (0 - 100)</span>
+                      <div className="text-4xl font-extrabold text-emerald-400 mt-1">
+                        {susSummary ? susSummary.avg_sus_score : '0.0'}
+                      </div>
+                      <div className="text-xs text-amber-300 font-semibold mt-2 px-2">
+                        {susSummary?.grade || 'Belum Ada Responden'}
+                      </div>
+                    </div>
+
+                    {susResult && (
+                      <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-xs text-emerald-300 space-y-1">
+                        <strong>Skor Respon Anda: {susResult.sus_score} / 100</strong>
+                        <p className="text-[11px] opacity-90">{susResult.grade}</p>
+                      </div>
+                    )}
+
+                    <div className="space-y-2 text-xs border-t border-[#1e3a5f]/20 pt-3">
+                      <div className="flex justify-between text-[#8fb3d8]">
+                        <span>Total Responden:</span>
+                        <strong className="text-white">{susSummary?.total_respondents || 0} orang</strong>
+                      </div>
+                      <div className="flex justify-between text-[#8fb3d8]">
+                        <span>Status Usability (Bangor et al.):</span>
+                        <strong className={susSummary?.is_acceptable ? 'text-emerald-400 font-bold' : 'text-amber-400'}>
+                          {susSummary?.is_acceptable ? '✅ LAYAK / ACCEPTABLE (>68.0)' : '⚠️ DALAM EVALUASI'}
+                        </strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Benchmark Standard Card */}
+                  <div className="glass-card p-6 space-y-3 text-xs text-[#8fb3d8] leading-relaxed">
+                    <h4 className="font-bold text-white text-sm flex items-center gap-1.5">
+                      <Info size={14} className="text-blue-400" /> Skala Acuan SUS (Brooke, 1996):
+                    </h4>
+                    <div className="space-y-1 text-[11px] font-mono">
+                      <div className="flex justify-between border-b border-[#1e3a5f]/20 py-1">
+                        <span>SUS &gt; 80.3</span>
+                        <strong className="text-emerald-400">Grade A (Excellent)</strong>
+                      </div>
+                      <div className="flex justify-between border-b border-[#1e3a5f]/20 py-1">
+                        <span>SUS 68.0 - 80.2</span>
+                        <strong className="text-blue-400">Grade B (Good)</strong>
+                      </div>
+                      <div className="flex justify-between border-b border-[#1e3a5f]/20 py-1">
+                        <span>SUS 51.0 - 67.9</span>
+                        <strong className="text-amber-400">Grade C (Fair)</strong>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span>SUS &lt; 51.0</span>
+                        <strong className="text-red-400">Grade F (Poor)</strong>
+                      </div>
+                    </div>
+                  </div>
 
                 </div>
 

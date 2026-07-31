@@ -187,6 +187,18 @@ export const getThreatAnalysis = () =>
 export const getEvidenceSummary = () =>
   fetchAPI<any>('/api/validation/evidence-summary');
 
+export const submitExpertAnnotation = (itemId: string, verdict: 'agreed' | 'disagreed', annotatorId = 'Expert_A', category?: string, notes?: string) =>
+  fetchAPI<any>('/api/validation/annotate', {
+    method: 'POST',
+    body: JSON.stringify({ item_id: itemId, annotator_id: annotatorId, verdict, category, notes }),
+  });
+
+export const getExpertAnnotations = () =>
+  fetchAPI<any>('/api/validation/annotations');
+
+export const getLiveCohenKappa = () =>
+  fetchAPI<any>('/api/validation/live-kappa');
+
 // L4: Aspect & Entity Extraction
 export const extractAspects = (text: string, includeRelations = true) =>
   fetchAPI<any>('/api/extraction/extract', {
@@ -194,10 +206,10 @@ export const extractAspects = (text: string, includeRelations = true) =>
     body: JSON.stringify({ text, include_relations: includeRelations }),
   });
 
-export const extractMisconceptions = (text: string) =>
+export const extractMisconceptions = (text: string, modelMode = 'llm_groq') =>
   fetchAPI<any>('/api/extraction/extract-misconceptions', {
     method: 'POST',
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, model_mode: modelMode }),
   });
 
 // L2: Corpus Synchronization
@@ -319,3 +331,22 @@ export const getExplorerArticleDetail = (articleId: string) =>
 
 export const getYearlyBreakdown = () =>
   fetchAPI<{ data: any[] }>('/api/explorer/stats/yearly-breakdown');
+
+// ─── SUS Survey & Export Helpers ─────────────────────────────────────────────
+export const submitSusSurvey = (userRole: string, answers: number[], feedback?: string) =>
+  fetchAPI<any>('/api/validation/sus-survey', {
+    method: 'POST',
+    body: JSON.stringify({ user_role: userRole, answers, feedback }),
+  });
+
+export const getSusSummary = () =>
+  fetchAPI<any>('/api/validation/sus-summary');
+
+export const getExportMisconceptionsCsvUrl = () => `${API_BASE}/api/export/csv/misconceptions`;
+export const getExportArticlesCsvUrl = () => `${API_BASE}/api/export/csv/articles`;
+export const getExportPdfReportUrl = () => `${API_BASE}/api/export/pdf/report`;
+export const getExportCitationBibtexUrl = (articleId?: string) =>
+  `${API_BASE}/api/export/citation/bibtex${articleId ? `?article_id=${encodeURIComponent(articleId)}` : ''}`;
+export const getExportCitationRisUrl = (articleId?: string) =>
+  `${API_BASE}/api/export/citation/ris${articleId ? `?article_id=${encodeURIComponent(articleId)}` : ''}`;
+

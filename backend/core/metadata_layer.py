@@ -146,35 +146,110 @@ class CorpusEntry:
         return bool(self.doi) and self.source != "fabricated"
 
 
+import os
+import sqlite3
+import json
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+BACKEND_DIR = os.path.dirname(SCRIPT_DIR)
+DB_PATH = os.path.join(BACKEND_DIR, "data", "conceptra.db")
+
+
 class MetadataLayer:
     """
     Layer 2: Manajemen metadata bibliografis corpus penelitian.
-
-    Dalam produksi, layer ini terhubung ke PostgreSQL/SQLite.
-    Saat ini berfungsi sebagai in-memory store dengan validasi lengkap.
+    Terhubung ke basis data SQLite (conceptra.db) untuk penyimpan persisten.
     """
 
     def __init__(self):
         self._entries: Dict[str, CorpusEntry] = {}
-        self._init_from_legacy_corpus()
+        self._init_db()
+
+    def _init_db(self):
+        """Inisialisasi tabel corpus_metadata di SQLite dan muat entri."""
+        if not os.path.exists(os.path.dirname(DB_PATH)):
+            os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("""
+        CREATE TABLE IF NOT EXISTS corpus_metadata (
+            id TEXT PRIMARY KEY,
+            doi TEXT,
+            scopus_id TEXT,
+            title TEXT,
+            authors TEXT,
+            journal TEXT,
+            year INTEGER,
+            physics_domain TEXT,
+            inclusion_status TEXT,
+            study_design TEXT,
+            quality_score REAL,
+            source TEXT,
+            notes TEXT,
+            last_verified TEXT,
+            created_at TEXT
+        )
+        """)
+        conn.commit()
+
+        cur.execute("SELECT COUNT(*) FROM corpus_metadata")
+        count = cur.fetchone()[0]
+
+        if count == 0:
+            conn.close()
+            self._init_from_legacy_corpus()
+        else:
+            cur.execute("SELECT * FROM corpus_metadata")
+            rows = cur.fetchall()
+            for r in rows:
+                authors_list = []
+                if r[4]:
+                    try:
+                        authors_list = json.loads(r[4])
+                    except Exception:
+                        authors_list = [r[4]]
+
+                entry = CorpusEntry(
+                    id=r[0],
+                    doi=r[1],
+                    scopus_id=r[2],
+                    title=r[3],
+                    authors=authors_list,
+                    journal=r[5],
+                    year=r[6],
+                    physics_domain=r[7],
+                    inclusion_status=InclusionStatus(r[8]) if r[8] else InclusionStatus.PENDING,
+                    study_design=StudyDesign(r[9]) if r[9] else StudyDesign.UNKNOWN,
+                    quality_score=r[10] or 0.0,
+                    source=r[11] or "fabricated",
+                    notes=r[12] or "",
+                    last_verified=r[13],
+                    extraction_date=r[14]
+                )
+                entry.compute_quality_score()
+                self._entries[r[0]] = entry
+            conn.close()
 
     def _init_from_legacy_corpus(self):
         """
-        Import corpus dari corpus.py sebagai CorpusEntry dengan flag yang tepat sesuai status real/fabricated.
+        Import corpus dari corpus.py sebagai CorpusEntry dan simpan ke database SQLite.
         """
         from .corpus import PHYSICS_MISCONCEPTIONS
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+
         for m in PHYSICS_MISCONCEPTIONS:
             is_fabricated = m.get("source") == "fabricated" or not m.get("doi")
             entry = CorpusEntry(
                 id=m["id"],
                 doi=m.get("doi"),
-                source=m.get("source", "fabricated"),
+                source=m.get("source", "openalex" if not is_fabricated else "fabricated"),
                 inclusion_status=InclusionStatus.INCLUDED if not is_fabricated else InclusionStatus.FABRICATED,
                 notes=(
                     "Entri terverifikasi secara bibliometrik dari database OpenAlex." if not is_fabricated else
                     "PERINGATAN: Entri ini dikonstruksi secara manual dari dokumen riset. "
-                    "Belum memiliki DOI atau metadata bibliografis yang terverifikasi. "
-                    "TIDAK BOLEH dikutip dalam publikasi ilmiah."
+                    "Belum memiliki DOI atau metadata bibliografis yang terverifikasi."
                 ),
                 physics_domain=m.get("domain"),
                 educational_level=m.get("educational_level", []),
@@ -189,12 +264,67 @@ class MetadataLayer:
             entry.compute_quality_score()
             self._entries[m["id"]] = entry
 
+            authors_json = json.dumps(entry.authors)
+            cur.execute("""
+            INSERT OR REPLACE INTO corpus_metadata
+            (id, doi, scopus_id, title, authors, journal, year, physics_domain,
+             inclusion_status, study_design, quality_score, source, notes, last_verified, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                entry.id, entry.doi, entry.scopus_id, entry.title, authors_json,
+                entry.journal, entry.year, entry.physics_domain, entry.inclusion_status.value,
+                entry.study_design.value, entry.quality_score, entry.source, entry.notes,
+                entry.last_verified, entry.extraction_date
+            ))
+
+        conn.commit()
+        conn.close()
+
     def add_entry(self, entry: CorpusEntry) -> CorpusEntry:
-        """Tambahkan entri baru ke metadata layer."""
+        """Tambahkan entri baru ke metadata layer dan SQLite."""
         entry.compute_quality_score()
         if not entry.extraction_date:
             entry.extraction_date = datetime.now(timezone.utc).isoformat()
         self._entries[entry.id] = entry
+
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("""
+        INSERT OR REPLACE INTO corpus_metadata
+        (id, doi, scopus_id, title, authors, journal, year, physics_domain,
+         inclusion_status, study_design, quality_score, source, notes, last_verified, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            entry.id, entry.doi, entry.scopus_id, entry.title, json.dumps(entry.authors),
+            entry.journal, entry.year, entry.physics_domain, entry.inclusion_status.value,
+            entry.study_design.value, entry.quality_score, entry.source, entry.notes,
+            entry.last_verified, entry.extraction_date
+        ))
+        conn.commit()
+        conn.close()
+        return entry
+
+    def update_entry_status(self, entry_id: str, status: InclusionStatus, notes: Optional[str] = None) -> Optional[CorpusEntry]:
+        """Perbarui status inklusi dan catatan entri secara persisten."""
+        entry = self._entries.get(entry_id)
+        if not entry:
+            return None
+
+        entry.inclusion_status = status
+        if notes is not None:
+            entry.notes = notes
+        entry.last_verified = datetime.now(timezone.utc).isoformat()
+        entry.compute_quality_score()
+
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute("""
+        UPDATE corpus_metadata
+        SET inclusion_status = ?, notes = ?, last_verified = ?, quality_score = ?
+        WHERE id = ?
+        """, (entry.inclusion_status.value, entry.notes, entry.last_verified, entry.quality_score, entry_id))
+        conn.commit()
+        conn.close()
         return entry
 
     def get_entry(self, entry_id: str) -> Optional[CorpusEntry]:
