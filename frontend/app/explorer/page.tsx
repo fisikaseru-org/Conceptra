@@ -135,23 +135,28 @@ function ArticleCard({ article, onClick }: { article: ArticleSummary; onClick: (
 
       {/* Footer */}
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800/50">
-        <div className="flex gap-2">
-          {article.doi && (
-            <span className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300" onClick={e => {
-              e.stopPropagation();
-              window.open(`https://doi.org/${article.doi}`, '_blank');
-            }}>
-              <Link2 size={10} /> DOI
-            </span>
-          )}
-          {article.open_access_url && (
-            <span className="flex items-center gap-1 text-xs text-emerald-400">
-              <ExternalLink size={10} /> Open Access
-            </span>
-          )}
+        <div className="flex gap-2 items-center">
+          {(() => {
+            const link = (article.doi && article.doi.startsWith('http'))
+              ? article.doi
+              : (article.doi ? `https://doi.org/${article.doi.replace(/^https?:\/\/doi\.org\//, '')}` : (article.open_access_url || (article.id && article.id.startsWith('http') ? article.id : null)));
+            return link ? (
+              <a
+                href={link}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
+              >
+                <ExternalLink size={11} /> Buka Jurnal
+              </a>
+            ) : (
+              <span className="text-xs text-slate-600">No link</span>
+            );
+          })()}
         </div>
         {article.quality_score != null && (
-          <span className="text-xs text-slate-500">Q: {article.quality_score.toFixed(1)}</span>
+          <span className="text-xs text-slate-500">Quality: {(article.quality_score * 100).toFixed(0)}%</span>
         )}
       </div>
     </motion.div>
@@ -540,17 +545,17 @@ function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onC
 
           {/* Action links */}
           <div className="flex gap-3 flex-wrap pt-4 border-t border-slate-800">
-            {article.doi && !article.doi.startsWith('http') ? (
-              <a href={article.doi.includes('doi.org') ? article.doi : `https://doi.org/${article.doi}`} target="_blank" rel="noopener noreferrer"
-                className="btn-primary flex items-center gap-2 text-xs">
-                <ExternalLink size={12} /> Buka DOI
-              </a>
-            ) : (article.doi?.startsWith('http') || article.url || article.open_access_url) ? (
-              <a href={(article.doi?.startsWith('http') ? article.doi : (article.url || article.open_access_url)) || ''} target="_blank" rel="noopener noreferrer"
-                className="btn-primary flex items-center gap-2 text-xs">
-                <Link2 size={12} /> Buka Artikel
-              </a>
-            ) : null}
+            {(() => {
+              const link = (article.doi && article.doi.startsWith('http'))
+                ? article.doi
+                : (article.doi ? `https://doi.org/${article.doi.replace(/^https?:\/\/doi\.org\//, '')}` : (article.url || article.open_access_url || (article.id && article.id.startsWith('http') ? article.id : null)));
+              return link ? (
+                <a href={link} target="_blank" rel="noopener noreferrer"
+                  className="btn-primary flex items-center gap-2 text-xs font-semibold px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg transition-all">
+                  <ExternalLink size={14} /> Buka Jurnal / DOI Publikasi
+                </a>
+              ) : null;
+            })()}
             <a href={getExportCitationBibtexUrl(article.id)} download className="flex items-center gap-1.5 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-xl border border-slate-700 font-medium transition-colors">
               <Download size={12} className="text-blue-400" /> Sitasi BibTeX
             </a>

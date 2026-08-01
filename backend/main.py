@@ -239,7 +239,8 @@ async def health_check():
         },
         "validation": {
             "status": "operational",
-            "ground_truth_available": True,
+            "ground_truth_available": False,
+            "note": "Pending — Human expert validation in progress. Automated extraction grounded via OpenAlex metadata.",
         },
         "evidence": {
             "status": "operational",
