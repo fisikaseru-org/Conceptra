@@ -243,6 +243,17 @@ export default function ValidationPage() {
           </div>
         </div>
 
+        {/* Expert Validation Advisory Banner */}
+        <div className="border border-amber-500/30 bg-amber-500/5 rounded-2xl p-4 flex items-start gap-4 animate-fade-in">
+          <AlertTriangle className="text-amber-500 flex-shrink-0 mt-0.5" size={20} />
+          <div>
+            <h3 className="font-semibold text-amber-200 text-sm">Pemberitahuan Penting: Diperlukan Validasi Ahli (Expert Validation Required)</h3>
+            <p className="text-[#a5b4fc]/80 text-xs mt-1 leading-relaxed">
+              Meskipun platform Conceptra menyajikan audit kredibilitas otomatis, metrik keandalan AI, dan pengujian empiris (seperti Cohen's Kappa), <strong>seluruh dataset miskonsepsi dan artikel ilmiah pada proyek ini tetap memerlukan validasi ahli (expert validation)</strong> oleh pakar pendidikan fisika sebelum digunakan secara formal untuk materi pembelajaran atau instrumen tes.
+            </p>
+          </div>
+        </div>
+
         {/* Status Alert Banner */}
         {corpusAudit && !corpusAudit.publication_ready && (
           <div className="border border-red-500/30 bg-red-500/5 rounded-2xl p-4 flex items-start gap-4 animate-fade-in">

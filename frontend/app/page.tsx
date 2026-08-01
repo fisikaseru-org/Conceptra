@@ -280,11 +280,18 @@ export default function HomePage() {
             Peta Pengetahuan Miskonsepsi Fisika Indonesia
           </p>
 
-          <p className="text-slate-400 max-w-2xl mx-auto mb-12 text-lg leading-relaxed">
+          <p className="text-slate-400 max-w-2xl mx-auto mb-6 text-lg leading-relaxed">
             Platform AI berbasis <strong className="text-slate-200 font-semibold">NLP</strong>, <strong className="text-slate-200 font-semibold">Knowledge Graph</strong>,
             dan <strong className="text-slate-200 font-semibold">GraphRAG</strong> untuk memetakan, menganalisis, dan meremediasi
             miskonsepsi fisika selama 3 dekade terakhir.
           </p>
+
+          <div className="max-w-2xl mx-auto mb-10 p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 text-amber-200 text-xs md:text-sm flex items-start md:items-center gap-3 backdrop-blur-md shadow-lg shadow-amber-500/5">
+            <AlertTriangle className="text-amber-500 shrink-0 mt-0.5 md:mt-0" size={18} />
+            <p className="text-left md:text-center leading-relaxed">
+              <strong>Pemberitahuan:</strong> Seluruh dataset dan hasil analisis AI pada proyek observatori ini <strong>tetap memerlukan validasi ahli</strong> (pakar pendidikan fisika) sebelum digunakan untuk keperluan akademis atau praktis.
+            </p>
+          </div>
 
           <div className="flex flex-wrap justify-center gap-4 mt-4">
             <Link href="/misconceptions">

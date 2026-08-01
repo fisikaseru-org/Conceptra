@@ -174,12 +174,14 @@ export default function MisconceptionsPage() {
   const levels = [...new Set(misconceptions.flatMap(m => m.educational_level))].sort();
 
   const filtered = misconceptions.filter(m => {
-    const q = searchQuery.toLowerCase();
+    const q = searchQuery.toLowerCase().trim();
     const matchQ = !q || 
       m.misconception.toLowerCase().includes(q) ||
       m.domain.toLowerCase().includes(q) ||
       m.concept.toLowerCase().includes(q) ||
-      m.keywords.some(k => k.toLowerCase().includes(q));
+      m.keywords.some(k => k.toLowerCase().includes(q)) ||
+      (m.doi && m.doi.toLowerCase().includes(q)) ||
+      (q.includes('doi.org/') && m.doi && q.includes(m.doi.toLowerCase()));
     const matchDomain = !selectedDomain || m.domain === selectedDomain;
     const matchLevel = !selectedLevel || m.educational_level.includes(selectedLevel);
     return matchQ && matchDomain && matchLevel;
@@ -580,7 +582,21 @@ export default function MisconceptionsPage() {
                                 </div>
                                 <div className="flex-1">
                                   <p className="text-sm text-slate-200 font-medium mb-2 leading-relaxed">
-                                    "{article.title}"
+                                    {(() => {
+                                      const url = article.url || (article.doi ? `https://doi.org/${article.doi}` : null);
+                                      return url ? (
+                                        <a
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="hover:text-blue-400 hover:underline transition-colors inline-flex items-center gap-1"
+                                        >
+                                          "{article.title}" <ExternalLink size={12} className="inline shrink-0 opacity-60" />
+                                        </a>
+                                      ) : (
+                                        `"${article.title}"`
+                                      );
+                                    })()}
                                   </p>
                                   
                                   <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-xs text-slate-400">

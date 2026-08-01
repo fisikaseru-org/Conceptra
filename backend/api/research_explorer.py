@@ -67,9 +67,12 @@ async def get_articles(
         conditions.append("evidence_level = ?")
         params.append(evidence_level)
     if search:
-        conditions.append("(LOWER(title) LIKE ? OR LOWER(abstract) LIKE ?)")
-        s = f"%{search.lower()}%"
-        params.extend([s, s])
+        search_lower = search.lower().strip()
+        conditions.append(
+            "(LOWER(title) LIKE ? OR LOWER(abstract) LIKE ? OR LOWER(doi) LIKE ? OR LOWER(url) LIKE ? OR LOWER(open_access_url) LIKE ? OR LOWER(id) LIKE ? OR (doi IS NOT NULL AND doi != '' AND ? LIKE '%' || LOWER(doi) || '%') OR (url IS NOT NULL AND url != '' AND ? LIKE '%' || LOWER(url) || '%'))"
+        )
+        s = f"%{search_lower}%"
+        params.extend([s, s, s, s, s, s, search_lower, search_lower])
 
     where = " AND ".join(conditions)
 

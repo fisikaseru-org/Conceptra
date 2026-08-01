@@ -6,7 +6,7 @@ import {
   Database, Search, Filter, BookOpen, ExternalLink, X, ChevronLeft,
   ChevronRight, Download, BarChart3, Globe, BookMarked, TrendingUp,
   Award, Layers, Calendar, Users, FileText, Zap, RefreshCw, Star,
-  Link2, Quote, Activity
+  Link2, Quote, Activity, AlertTriangle
 } from 'lucide-react';
 import {
   getExplorerArticles, getExplorerStats, getExplorerArticleDetail,
@@ -137,7 +137,22 @@ function ArticleCard({ article, onClick }: { article: ArticleSummary; onClick: (
 
       {/* Title */}
       <h3 className="text-sm font-semibold text-slate-100 leading-snug mb-2 line-clamp-2">
-        {article.title}
+        {(() => {
+          const res = resolveArticleLink(article);
+          return res ? (
+            <a
+              href={res.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
+              className="hover:text-blue-400 hover:underline transition-colors inline-flex items-center gap-1"
+            >
+              {article.title} <ExternalLink size={12} className="inline shrink-0 opacity-60" />
+            </a>
+          ) : (
+            article.title
+          );
+        })()}
       </h3>
 
       {/* Authors + Journal */}
@@ -428,7 +443,23 @@ function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onC
             </button>
           </div>
 
-          <h2 className="text-lg font-bold text-white mb-3 leading-snug">{article.title}</h2>
+          <h2 className="text-lg font-bold text-white mb-3 leading-snug">
+            {(() => {
+              const res = resolveArticleLink(article);
+              return res ? (
+                <a
+                  href={res.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-blue-400 hover:underline transition-colors inline-flex items-center gap-1.5"
+                >
+                  {article.title} <ExternalLink size={16} className="inline shrink-0 opacity-60" />
+                </a>
+              ) : (
+                article.title
+              );
+            })()}
+          </h2>
 
           {/* Authors */}
           {article.authors?.length > 0 && (
@@ -732,6 +763,16 @@ export default function ResearchExplorerPage() {
 
           {/* ─── Right: Articles ─────────────────────────────────────────── */}
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 }}>
+
+            {/* Expert Validation Advisory Banner */}
+            <div className="border border-amber-500/30 bg-amber-500/5 rounded-2xl p-4 flex items-start gap-3.5 mb-5 shadow-lg backdrop-blur-md">
+              <AlertTriangle className="text-amber-500 flex-shrink-0 mt-0.5" size={18} />
+              <div>
+                <p className="text-amber-200 text-xs md:text-sm leading-relaxed">
+                  <strong>Pemberitahuan Penting:</strong> Seluruh dataset artikel penelitian dalam index observatori ini merupakan hasil ekstraksi otomatis dan <strong>tetap memerlukan validasi ahli</strong> sebelum dijadikan rujukan praktis atau akademis formal.
+                </p>
+              </div>
+            </div>
 
             {/* Search + Filter bar */}
             <div className="glass-card p-4 border border-slate-800/40 mb-5">
