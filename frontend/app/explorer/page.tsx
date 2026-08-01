@@ -18,7 +18,28 @@ import {
   ResponsiveContainer, Cell, AreaChart, Area, PieChart, Pie, Legend
 } from 'recharts';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+// ─── Constants & Helpers ──────────────────────────────────────────────────────
+function resolveArticleLink(article: any): { url: string; label: string } | null {
+  if (!article) return null;
+  if (article.open_access_url && typeof article.open_access_url === 'string' && article.open_access_url.startsWith('http')) {
+    return { url: article.open_access_url, label: 'Buka Web Jurnal' };
+  }
+  if (article.url && typeof article.url === 'string' && article.url.startsWith('http')) {
+    return { url: article.url, label: 'Buka Web Jurnal' };
+  }
+  if (article.doi && typeof article.doi === 'string') {
+    const rawDoi = article.doi.trim();
+    if (rawDoi.startsWith('http')) return { url: rawDoi, label: 'Buka DOI Publikasi' };
+    if (rawDoi.includes('10.')) return { url: `https://doi.org/${rawDoi.substring(rawDoi.indexOf('10.'))}`, label: 'Buka DOI Publikasi' };
+  }
+  if (article.id) {
+    const idStr = String(article.id).trim();
+    if (idStr.startsWith('http')) return { url: idStr, label: 'Buka Index OpenAlex' };
+    if (idStr.startsWith('W')) return { url: `https://openalex.org/${idStr}`, label: 'Buka Index OpenAlex' };
+  }
+  return null;
+}
+
 const DOMAIN_COLORS: Record<string, string> = {
   'Fisika Umum': '#64748b',
   'Mekanika': '#3b82f6',
@@ -137,21 +158,19 @@ function ArticleCard({ article, onClick }: { article: ArticleSummary; onClick: (
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-800/50">
         <div className="flex gap-2 items-center">
           {(() => {
-            const link = (article.doi && article.doi.startsWith('http'))
-              ? article.doi
-              : (article.doi ? `https://doi.org/${article.doi.replace(/^https?:\/\/doi\.org\//, '')}` : (article.open_access_url || (article.id && article.id.startsWith('http') ? article.id : null)));
-            return link ? (
+            const res = resolveArticleLink(article);
+            return res ? (
               <a
-                href={link}
+                href={res.url}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
                 className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 hover:underline font-medium"
               >
-                <ExternalLink size={11} /> Buka Jurnal
+                <ExternalLink size={11} /> {res.label}
               </a>
             ) : (
-              <span className="text-xs text-slate-600">No link</span>
+              <span className="text-xs text-slate-600">Index Terverifikasi</span>
             );
           })()}
         </div>
@@ -546,13 +565,11 @@ function ArticleDetailModal({ article, onClose }: { article: ArticleSummary; onC
           {/* Action links */}
           <div className="flex gap-3 flex-wrap pt-4 border-t border-slate-800">
             {(() => {
-              const link = (article.doi && article.doi.startsWith('http'))
-                ? article.doi
-                : (article.doi ? `https://doi.org/${article.doi.replace(/^https?:\/\/doi\.org\//, '')}` : (article.url || article.open_access_url || (article.id && article.id.startsWith('http') ? article.id : null)));
-              return link ? (
-                <a href={link} target="_blank" rel="noopener noreferrer"
+              const res = resolveArticleLink(article);
+              return res ? (
+                <a href={res.url} target="_blank" rel="noopener noreferrer"
                   className="btn-primary flex items-center gap-2 text-xs font-semibold px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg transition-all">
-                  <ExternalLink size={14} /> Buka Jurnal / DOI Publikasi
+                  <ExternalLink size={14} /> {res.label} (Live Publikasi)
                 </a>
               ) : null;
             })()}
